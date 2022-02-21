@@ -1,17 +1,16 @@
 """
 Environment module
 """
-from typing import Dict, Optional
 
-import gym
-import math
+from typing import Dict
+
 import numpy as np
-from typing import Dict, List
-from atcenv.definitions import *
 from gym.envs.classic_control import rendering
+from ray.rllib import MultiAgentEnv
 from shapely.geometry import LineString, MultiPoint
 from shapely.ops import nearest_points
 
+from atcenv.definitions import *
 
 WHITE = [255, 255, 255]
 GREEN = [0, 255, 0]
@@ -21,7 +20,7 @@ RED = [255, 0, 0]
 YELLOW = [255, 255, 0]
 
 
-class Environment(gym.Env):
+class FlightEnv(MultiAgentEnv):
     metadata = {'render.modes': ['rgb_array']}
 
     def __init__(self,
@@ -67,12 +66,12 @@ class Environment(gym.Env):
 
         self.viewer = None
         self.airspace = None
-        self.flights = []  # list of flights
+        self.flights = {}  # list of flights
         self.conflicts = set()  # set of flights that are in conflict
-        self.done = set()  # set of flights that reached the target
+        self.done = {}  # set of flights that reached the target
         self.i = None
 
-    def resolution(self, action: List) -> None:
+    def resolution(self, action: Dict) -> None:
         """
         Applies the resolution actions
         If your policy can modify the speed, then remember to clip the speed of each flight
@@ -85,25 +84,25 @@ class Environment(gym.Env):
         return None
         ##########################################################
 
-    def reward(self) -> List:
+    def reward(self) -> Dict:
         """
         Returns the reward assigned to each agent
         :return: reward assigned to each agent
         """
         # RDC: here you should implement your reward function
         ##########################################################
-        return []
+        return {}
         ##########################################################
 
-    def observation(self) -> List:
+    def observation(self) -> Dict:
         """
         Returns the observation of each agent. A single agent observation is a
         np.array of dimension 2*self.max_agent_seen. It represents the distances
         (dx, dy) with the self.max_agent_seen closest flights
         :return: observation of each agent
         """
-        observations = []
-        for i, flight in enumerate(self.flights):
+        observations = {}
+        for i, flight in self.flights.items():
             obs = np.zeros(self.max_agent_seen * 2, dtype=np.float32)
             origin = flight.position
             seen_agents_indices = self.flights_in_fov(i)
@@ -123,7 +122,7 @@ class Environment(gym.Env):
                         obs[j * 2:j * 2 + 2] = nearest_agent.x - \
                                                origin.x, nearest_agent.y - origin.y
                         seen_agents.difference(nearest_agent)
-            observations.append(obs)
+            observations[i] = obs
 
         # RDC: here you should implement your observation function
         ##########################################################
@@ -137,7 +136,7 @@ class Environment(gym.Env):
         """
         seen_agents = []
         flight_fov = self.flights[flight_id].fov
-        for i, flight in enumerate(self.flights):
+        for i, flight in self.flights.items():
             if i == flight_id:
                 continue
             else:
@@ -166,16 +165,17 @@ class Environment(gym.Env):
                         if distance < self.min_distance:
                             self.conflicts.update((i, j))
 
+
     def update_done(self) -> None:
         """
         Updates the set of flights that reached the target
         :return:
         """
-        for i, f in enumerate(self.flights):
-            if i not in self.done:
+        for i, f in self.flights.items():
+            if not self.done[i]:
                 distance = f.position.distance(f.target)
                 if distance < self.tol:
-                    self.done.add(i)
+                    self.done[i] = True
 
     def update_positions(self) -> None:
         """
@@ -183,8 +183,8 @@ class Environment(gym.Env):
         Note: the position of agents that reached the target is not modified
         :return:
         """
-        for i, f in enumerate(self.flights):
-            if i not in self.done:
+        for i, f in self.flights.items():
+            if not self.done[i]:
                 # get current speed components
                 dx, dy = f.components
 
@@ -195,7 +195,7 @@ class Environment(gym.Env):
                 f.position._set_coords(
                     position.x + dx * self.dt, position.y + dy * self.dt)
 
-    def step(self, action: List) -> Tuple[List, List, bool, Dict]:
+    def step(self, action: dict) -> Tuple[List, List, bool, Dict]:
         """
         Performs a simulation step
 
@@ -227,12 +227,16 @@ class Environment(gym.Env):
         # termination happens when
         # (1) all flights reached the target
         # (2) the maximum episode length is reached
-        done = (self.i == self.max_episode_len) or (
-                len(self.done) == self.num_flights)
 
-        return rew, obs, done, {}
+        all_done= self.i == self.max_episode_len
+        if not all_done:
+            all_done=all([v for k, v in self.done.items() if k != "__all__"])
 
-    def reset(self) -> List:
+        self.done["__all__"]=all_done
+
+        return rew, obs, self.done, {}
+
+    def reset(self) -> Dict:
         """
         Resets the environment and returns initial observation
         :return: initial observation
@@ -241,7 +245,7 @@ class Environment(gym.Env):
         self.airspace = Airspace.random(self.min_area, self.max_area)
 
         # create random flights
-        self.flights = []
+        self.flights = {}
         tol = self.distance_init_buffer * self.tol
         min_distance = self.distance_init_buffer * self.min_distance
 
@@ -253,12 +257,12 @@ class Environment(gym.Env):
                 self.airspace, self.min_speed, self.max_speed, idx, tol)
 
             # ensure that candidate is not in conflict
-            for f in self.flights:
+            for f in self.flights.values():
                 if candidate.position.distance(f.position) < min_distance:
                     valid = False
                     break
             if valid:
-                self.flights.append(candidate)
+                self.flights[idx] = candidate
                 idx += 1
 
         # initialise steps counter
@@ -266,7 +270,8 @@ class Environment(gym.Env):
 
         # clean conflicts and done sets
         self.conflicts = set()
-        self.done = set()
+        self.done = {flight_id: False for flight_id in self.flights.keys()}
+        self.done["__all__"] = False
 
         # return initial observation
         return self.observation()
@@ -303,8 +308,8 @@ class Environment(gym.Env):
             self.viewer.add_geom(sector)
 
         # add current positions
-        for i, f in enumerate(self.flights):
-            if i in self.done:
+        for i, f in self.flights.items():
+            if self.done[i]:
                 continue
 
             if i in self.conflicts:
