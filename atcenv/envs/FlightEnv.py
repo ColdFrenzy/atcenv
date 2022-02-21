@@ -1,7 +1,7 @@
 """
 Environment module
 """
-
+from copy import copy
 from typing import Dict
 
 import numpy as np
@@ -91,7 +91,11 @@ class FlightEnv(MultiAgentEnv):
         """
         # RDC: here you should implement your reward function
         ##########################################################
-        return {}
+
+        rews = {}
+        for i, f in self.flights.items():
+            rews[i] = 0
+        return rews
         ##########################################################
 
     def observation(self) -> Dict:
@@ -165,7 +169,6 @@ class FlightEnv(MultiAgentEnv):
                         if distance < self.min_distance:
                             self.conflicts.update((i, j))
 
-
     def update_done(self) -> None:
         """
         Updates the set of flights that reached the target
@@ -195,7 +198,7 @@ class FlightEnv(MultiAgentEnv):
                 f.position._set_coords(
                     position.x + dx * self.dt, position.y + dy * self.dt)
 
-    def step(self, action: dict) -> Tuple[List, List, bool, Dict]:
+    def step(self, action: dict) -> Tuple[Dict, Dict, Dict, Dict]:
         """
         Performs a simulation step
 
@@ -228,13 +231,16 @@ class FlightEnv(MultiAgentEnv):
         # (1) all flights reached the target
         # (2) the maximum episode length is reached
 
-        all_done= self.i == self.max_episode_len
+        all_done = self.i == self.max_episode_len
         if not all_done:
-            all_done=all([v for k, v in self.done.items() if k != "__all__"])
+            all_done = all([v for k, v in self.done.items() if k != "__all__"])
 
-        self.done["__all__"]=all_done
+        self.done["__all__"] = all_done
 
-        return rew, obs, self.done, {}
+        done=copy(self.done)
+
+
+        return rew, obs, done, {}
 
     def reset(self) -> Dict:
         """
