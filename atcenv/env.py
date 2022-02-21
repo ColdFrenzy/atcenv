@@ -1,6 +1,8 @@
 """
 Environment module
 """
+from typing import Dict, Optional
+
 import gym
 import math
 import numpy as np
@@ -9,6 +11,7 @@ from atcenv.definitions import *
 from gym.envs.classic_control import rendering
 from shapely.geometry import LineString, MultiPoint
 from shapely.ops import nearest_points
+
 
 WHITE = [255, 255, 255]
 GREEN = [0, 255, 0]
@@ -101,15 +104,15 @@ class Environment(gym.Env):
         """
         observations = []
         for i, flight in enumerate(self.flights):
-            obs = np.zeros(self.max_agent_seen*2, dtype=np.float32)
+            obs = np.zeros(self.max_agent_seen * 2, dtype=np.float32)
             origin = flight.position
             seen_agents_indices = self.flights_in_fov(i)
             if len(seen_agents_indices) != 0:
                 # if we saw less agents than the maximum number, we pick all of them
                 if len(seen_agents_indices) <= self.max_agent_seen:
                     for j, seen_agent_idx in enumerate(seen_agents_indices):
-                        obs[j*2:j*2+2] = self.flights[seen_agent_idx].position.x - origin.x,\
-                            self.flights[seen_agent_idx].position.y - origin.y
+                        obs[j * 2:j * 2 + 2] = self.flights[seen_agent_idx].position.x - origin.x, \
+                                               self.flights[seen_agent_idx].position.y - origin.y
                 else:
                     # set of points of all the agents in the fov
                     seen_agents = MultiPoint(
@@ -117,8 +120,8 @@ class Environment(gym.Env):
                     # take the 3 closest agent
                     for j in range(self.max_agent_seen):
                         nearest_agent = nearest_points(origin, seen_agents)
-                        obs[j*2:j*2+2] = nearest_agent.x - \
-                            origin.x, nearest_agent.y - origin.y
+                        obs[j * 2:j * 2 + 2] = nearest_agent.x - \
+                                               origin.x, nearest_agent.y - origin.y
                         seen_agents.difference(nearest_agent)
             observations.append(obs)
 
@@ -225,7 +228,7 @@ class Environment(gym.Env):
         # (1) all flights reached the target
         # (2) the maximum episode length is reached
         done = (self.i == self.max_episode_len) or (
-            len(self.done) == self.num_flights)
+                len(self.done) == self.num_flights)
 
         return rew, obs, done, {}
 
@@ -241,10 +244,13 @@ class Environment(gym.Env):
         self.flights = []
         tol = self.distance_init_buffer * self.tol
         min_distance = self.distance_init_buffer * self.min_distance
+
+        idx = 0
+
         while len(self.flights) < self.num_flights:
             valid = True
             candidate = Flight.random(
-                self.airspace, self.min_speed, self.max_speed, tol)
+                self.airspace, self.min_speed, self.max_speed, idx, tol)
 
             # ensure that candidate is not in conflict
             for f in self.flights:
@@ -253,6 +259,7 @@ class Environment(gym.Env):
                     break
             if valid:
                 self.flights.append(candidate)
+                idx += 1
 
         # initialise steps counter
         self.i = 0

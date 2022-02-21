@@ -52,6 +52,7 @@ class Flight:
     position: Point
     target: Point
     optimal_airspeed: float
+    flight_id: int
 
     airspeed: float = field(init=False)
     track: float = field(init=False)
@@ -151,7 +152,7 @@ class Flight:
             return u.circle - drift
 
     @classmethod
-    def fixed(cls, airspace: Airspace, position: Point, min_speed: float, max_speed: float, tol: float = 0.):
+    def fixed(cls, airspace: Airspace, position: Point, min_speed: float, max_speed: float, flight_id: int, tol: float = 0.):
         """
         Creates a fixed flight
 
@@ -159,6 +160,7 @@ class Flight:
         :param position: flight position
         :param max_speed: maximum speed of the flights (in kt)
         :param min_speed: minimum speed of the flights (in kt)
+        :param flight_id: identifier for a flight
         :param tol: tolerance to consider that the target has been reached (in meters)
         :return: fixed flight
         """
@@ -175,16 +177,17 @@ class Flight:
         # random speed
         airspeed = random.uniform(min_speed, max_speed)
 
-        return cls(position, target, airspeed)
+        return cls(position, target, airspeed, flight_id)
 
     @classmethod
-    def random(cls, airspace: Airspace, min_speed: float, max_speed: float, tol: float = 0.):
+    def random(cls, airspace: Airspace, min_speed: float, max_speed: float, flight_id: int, tol: float = 0.,):
         """
         Creates a random flight
 
         :param airspace: airspace where the flight is located
         :param max_speed: maximum speed of the flights (in kt)
         :param min_speed: minimum speed of the flights (in kt)
+        :param flight_id: identifier for a flight
         :param tol: tolerance to consider that the target has been reached (in meters)
         :return: random flight
         """
@@ -199,6 +202,7 @@ class Flight:
         # random position
         position = random_point_in_polygon(airspace.polygon)
 
+
         # random target
         boundary = airspace.polygon.boundary
         while True:
@@ -210,4 +214,4 @@ class Flight:
         # random speed
         airspeed = random.uniform(min_speed, max_speed)
 
-        return cls(position, target, airspeed)
+        return cls(position, target, airspeed, flight_id)
