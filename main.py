@@ -35,9 +35,11 @@ if __name__ == "__main__":
         done = False
 
         # execute one episode
-        while not done:
+        # while not done:
+        for i in range(100):
             # perform step with dummy action
-            obs, rew, done, info = env.step([])
+            rew, obs, done, info = env.step([])
+            print(obs[0])
             env.render()
             time.sleep(0.05)
 

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 import atcenv.units as u
 import math
 import random
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 
 @dataclass
@@ -72,6 +72,7 @@ class Flight:
         """
         dx = self.target.x - self.position.x
         dy = self.target.y - self.position.y
+        # bussola
         compass = math.atan2(dx, dy)
         return (compass + u.circle) % u.circle
 
@@ -84,6 +85,34 @@ class Flight:
         """
         dx, dy = self.components
         return Point([self.position.x + dx * dt, self.position.y + dy * dt])
+
+    @property
+    def fov(self, depth: Optional[float] = 50000., angle: Optional[float] = math.pi/6) -> Polygon:
+        """
+        Returns the field of view of the given flight
+        :return: polygon representing the agent's fov
+        """
+        fov_vertices = []
+        # center = [self.flights[flight_id].position]
+        center_x, center_y = self.position.x, self.position.y
+        fov_vertices.append(Point(center_x, center_y))
+        bearing = self.bearing
+        point_1_x = center_x + (depth *
+                                (math.cos((math.pi-(bearing+math.pi/2)) - angle/2)))
+        point_1_y = center_y + (depth *
+                                (math.sin((math.pi-(bearing+math.pi/2)) - angle/2)))
+        fov_vertices.append(Point(point_1_x, point_1_y))
+        point_2_x = center_x + (depth *
+                                (math.cos((math.pi-(bearing+math.pi/2)) + angle/2)))
+        point_2_y = center_y + (depth *
+                                (math.sin((math.pi-(bearing+math.pi/2)) + angle/2)))
+        # point_2 = depth*((math.cos(self.flights[flight_id].bearing + angle/2))**2 + (
+        #     math.sin(self.flights[flight_id].bearing + angle/2))**2)
+        fov_vertices.append(Point(point_2_x, point_2_y))
+
+        ##########################################################
+        return Polygon(fov_vertices)
+        ##########################################################
 
     @property
     def components(self) -> Tuple:
@@ -122,6 +151,33 @@ class Flight:
             return u.circle - drift
 
     @classmethod
+    def fixed(cls, airspace: Airspace, position: Point, min_speed: float, max_speed: float, tol: float = 0.):
+        """
+        Creates a fixed flight
+
+        :param airspace: airspace where the flight is located
+        :param position: flight position
+        :param max_speed: maximum speed of the flights (in kt)
+        :param min_speed: minimum speed of the flights (in kt)
+        :param tol: tolerance to consider that the target has been reached (in meters)
+        :return: fixed flight
+        """
+        assert airspace.contains(
+            position), "The point is outside of the Polygon"
+        # random target
+        boundary = airspace.polygon.boundary
+        while True:
+            d = random.uniform(0, airspace.polygon.boundary.length)
+            target = boundary.interpolate(d)
+            if target.distance(position) > tol:
+                break
+
+        # random speed
+        airspeed = random.uniform(min_speed, max_speed)
+
+        return cls(position, target, airspeed)
+
+    @classmethod
     def random(cls, airspace: Airspace, min_speed: float, max_speed: float, tol: float = 0.):
         """
         Creates a random flight
@@ -135,7 +191,8 @@ class Flight:
         def random_point_in_polygon(polygon: Polygon) -> Point:
             minx, miny, maxx, maxy = polygon.bounds
             while True:
-                point = Point(random.uniform(minx, maxx), random.uniform(miny, maxy))
+                point = Point(random.uniform(minx, maxx),
+                              random.uniform(miny, maxy))
                 if polygon.contains(point):
                     return point
 
@@ -154,5 +211,3 @@ class Flight:
         airspeed = random.uniform(min_speed, max_speed)
 
         return cls(position, target, airspeed)
-
-

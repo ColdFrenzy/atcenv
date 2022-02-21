@@ -2,16 +2,20 @@
 Environment module
 """
 import gym
+import math
+import numpy as np
 from typing import Dict, List
 from atcenv.definitions import *
 from gym.envs.classic_control import rendering
-from shapely.geometry import LineString
+from shapely.geometry import LineString, MultiPoint
+from shapely.ops import nearest_points
 
 WHITE = [255, 255, 255]
 GREEN = [0, 255, 0]
 BLUE = [0, 0, 255]
 BLACK = [0, 0, 0]
 RED = [255, 0, 0]
+YELLOW = [255, 255, 0]
 
 
 class Environment(gym.Env):
@@ -27,6 +31,7 @@ class Environment(gym.Env):
                  max_episode_len: Optional[int] = 300,
                  min_distance: Optional[float] = 5.,
                  distance_init_buffer: Optional[float] = 5.,
+                 max_agent_seen: Optional[int] = 3,
                  **kwargs):
         """
         Initialises the environment
@@ -41,6 +46,7 @@ class Environment(gym.Env):
         :param min_distance: pairs of flights which distance is < min_distance are considered in conflict (in nm)
         :param distance_init_buffer: distance factor used when initialising the enviroment to avoid flights close to conflict and close to the target
         :param kwargs: other arguments of your custom environment
+        :param max_agent_seen: maximum number of closest agents to consider in the partial observation
         """
         self.num_flights = num_flights
         self.max_area = max_area * (u.nm ** 2)
@@ -50,6 +56,7 @@ class Environment(gym.Env):
         self.min_distance = min_distance * u.nm
         self.max_episode_len = max_episode_len
         self.distance_init_buffer = distance_init_buffer
+        self.max_agent_seen = max_agent_seen
         self.dt = dt
 
         # tolerance to consider that the target has been reached (in meters)
@@ -57,7 +64,7 @@ class Environment(gym.Env):
 
         self.viewer = None
         self.airspace = None
-        self.flights = [] # list of flights
+        self.flights = []  # list of flights
         self.conflicts = set()  # set of flights that are in conflict
         self.done = set()  # set of flights that reached the target
         self.i = None
@@ -87,12 +94,55 @@ class Environment(gym.Env):
 
     def observation(self) -> List:
         """
-        Returns the observation of each agent
+        Returns the observation of each agent. A single agent observation is a
+        np.array of dimension 2*self.max_agent_seen. It represents the distances
+        (dx, dy) with the self.max_agent_seen closest flights
         :return: observation of each agent
         """
+        observations = []
+        for i, flight in enumerate(self.flights):
+            obs = np.zeros(self.max_agent_seen*2, dtype=np.float32)
+            origin = flight.position
+            seen_agents_indices = self.flights_in_fov(i)
+            if len(seen_agents_indices) != 0:
+                # if we saw less agents than the maximum number, we pick all of them
+                if len(seen_agents_indices) <= self.max_agent_seen:
+                    for j, seen_agent_idx in enumerate(seen_agents_indices):
+                        obs[j*2:j*2+2] = self.flights[seen_agent_idx].position.x - origin.x,\
+                            self.flights[seen_agent_idx].position.y - origin.y
+                else:
+                    # set of points of all the agents in the fov
+                    seen_agents = MultiPoint(
+                        [self.flights[seen_agent_idx].position for seen_agent_idx in seen_agents_indices])
+                    # take the 3 closest agent
+                    for j in range(self.max_agent_seen):
+                        nearest_agent = nearest_points(origin, seen_agents)
+                        obs[j*2:j*2+2] = nearest_agent.x - \
+                            origin.x, nearest_agent.y - origin.y
+                        seen_agents.difference(nearest_agent)
+            observations.append(obs)
+
         # RDC: here you should implement your observation function
         ##########################################################
-        return []
+        return observations
+        ##########################################################
+
+    def flights_in_fov(self, flight_id: int) -> List:
+        """
+        returns all the agents id in the FoV of the given agent
+        :return seen_agents: list of agent ids inside the FoV of the current agent
+        """
+        seen_agents = []
+        flight_fov = self.flights[flight_id].fov
+        for i, flight in enumerate(self.flights):
+            if i == flight_id:
+                continue
+            else:
+                if flight_fov.contains(flight.position):
+                    seen_agents.append(i)
+
+        ##########################################################
+        return seen_agents
         ##########################################################
 
     def update_conflicts(self) -> None:
@@ -108,7 +158,8 @@ class Environment(gym.Env):
             if i not in self.done:
                 for j in range(i + 1, self.num_flights):
                     if j not in self.done:
-                        distance = self.flights[i].position.distance(self.flights[j].position)
+                        distance = self.flights[i].position.distance(
+                            self.flights[j].position)
                         if distance < self.min_distance:
                             self.conflicts.update((i, j))
 
@@ -138,7 +189,8 @@ class Environment(gym.Env):
                 position = f.position
 
                 # get new position and advance one time step
-                f.position._set_coords(position.x + dx * self.dt, position.y + dy * self.dt)
+                f.position._set_coords(
+                    position.x + dx * self.dt, position.y + dy * self.dt)
 
     def step(self, action: List) -> Tuple[List, List, bool, Dict]:
         """
@@ -172,7 +224,8 @@ class Environment(gym.Env):
         # termination happens when
         # (1) all flights reached the target
         # (2) the maximum episode length is reached
-        done = (self.i == self.max_episode_len) or (len(self.done) == self.num_flights)
+        done = (self.i == self.max_episode_len) or (
+            len(self.done) == self.num_flights)
 
         return rew, obs, done, {}
 
@@ -190,7 +243,8 @@ class Environment(gym.Env):
         min_distance = self.distance_init_buffer * self.min_distance
         while len(self.flights) < self.num_flights:
             valid = True
-            candidate = Flight.random(self.airspace, self.min_speed, self.max_speed, tol)
+            candidate = Flight.random(
+                self.airspace, self.min_speed, self.max_speed, tol)
 
             # ensure that candidate is not in conflict
             for f in self.flights:
@@ -220,7 +274,8 @@ class Environment(gym.Env):
             # initialise viewer
             screen_width, screen_height = 600, 600
 
-            minx, miny, maxx, maxy = self.airspace.polygon.buffer(10 * u.nm).bounds
+            minx, miny, maxx, maxy = self.airspace.polygon.buffer(
+                10 * u.nm).bounds
             self.viewer = rendering.Viewer(screen_width, screen_height)
             self.viewer.set_bounds(minx, maxx, miny, maxy)
 
@@ -234,7 +289,8 @@ class Environment(gym.Env):
             self.viewer.add_geom(background)
 
             # display airspace
-            sector = rendering.make_polygon(self.airspace.polygon.boundary.coords, filled=False)
+            sector = rendering.make_polygon(
+                self.airspace.polygon.boundary.coords, filled=False)
             sector.set_linewidth(1)
             sector.set_color(*WHITE)
             self.viewer.add_geom(sector)
@@ -259,9 +315,21 @@ class Environment(gym.Env):
             plan = LineString([f.position, f.target])
             self.viewer.draw_polyline(plan.coords, linewidth=1, color=color)
             prediction = LineString([f.position, f.prediction])
-            self.viewer.draw_polyline(prediction.coords, linewidth=4, color=color)
+            self.viewer.draw_polyline(
+                prediction.coords, linewidth=4, color=color)
 
             self.viewer.add_onetime(circle)
+
+            # add fovs
+            fov_points = list(zip(*f.fov.exterior.coords.xy))[:-1]
+            fov = rendering.make_polygon(fov_points, filled=True)
+            # fov = rendering.make_polygon([(fov_points[0].x, fov_points[0].y),
+            #                               (fov_points[1].x, fov_points[1].y),
+            #                               (fov_points[2].x, fov_points[2].y),
+            #                               ],
+            #                              filled=True)
+            fov.set_color(*YELLOW)
+            self.viewer.add_onetime(fov)
 
         self.viewer.render()
 
