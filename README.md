@@ -56,10 +56,10 @@ python setup.py install
 ## Usage
 
 ```python
-from atcenv import Environment
+from atcenv import FlightEnv
 
 # create environment
-env = Environment()
+env = FlightEnv()
 
 # reset the environment
 obs = env.reset()
@@ -74,7 +74,7 @@ while not done:
 
     # perform step
     obs, rew, done, info = env.step(action)
-    
+
     # render (only recommended in debug mode)
     env.render()
 
