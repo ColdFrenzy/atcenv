@@ -14,12 +14,17 @@ class RayWrapper(FlightEnv):
         super().__init__(**env_context)
 
         # define spaces
-        self.observation_space = gym.spaces.Box(low=0, high=self.max_area, shape=(2 * self.max_agent_seen,))
+        # todo: check if low/high is correct
+        self.observation_space = gym.spaces.Box(low=-self.max_area, high=self.max_area, shape=(2 * self.max_agent_seen,))
         self.action_space = gym.spaces.Box(low=self.min_speed, high=self.max_speed, shape=(1,))
 
         self.done_ids = []
 
-    def step(self, action: List) -> Tuple[Dict, Dict, Dict, Dict]:
+    def step(self, action: Dict) -> Tuple[Dict, Dict, Dict, Dict]:
+
+        # ray returns an ndarray of one action, the env wants a float, so take first action
+        action={k:v[0] for k,v in action.items()}
+
         rew, obs, done, info = super(RayWrapper, self).step(action)
 
         # rllib doesn't want any input from previously done agents, so filter them out
