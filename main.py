@@ -10,6 +10,18 @@ random.seed(42)
 import time
 from tqdm import tqdm
 
+
+def random_action(flight_ids, min_speed, max_speed):
+
+    def inner():
+
+        actions={}
+        for f_id in flight_ids:
+            actions[f_id]=random.uniform(min_speed, max_speed)
+        return actions
+
+    return inner
+
 if __name__ == "__main__":
 
 
@@ -18,6 +30,9 @@ if __name__ == "__main__":
 
     # init environment
     env = FlightEnv(**vars(args.env))
+    obs = env.reset()
+
+    random_policy=random_action(env.flights.keys(), env.min_speed, env.max_speed)
 
     # run episodes
     for e in tqdm(range(args.episodes)):
@@ -31,7 +46,7 @@ if __name__ == "__main__":
         # while not done:
         for i in range(100):
             # perform step with dummy action
-            rew, obs, done, info = env.step({})
+            rew, obs, done, info = env.step(random_policy())
             env.render()
             time.sleep(0.05)
 

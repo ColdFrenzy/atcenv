@@ -71,17 +71,21 @@ class FlightEnv(MultiAgentEnv):
         self.done = {}  # set of flights that reached the target
         self.i = None
 
-    def resolution(self, action: Dict) -> None:
+    def resolution(self, actions: Dict) -> None:
         """
         Applies the resolution actions
         If your policy can modify the speed, then remember to clip the speed of each flight
         In the range [min_speed, max_speed]
-        :param action: list of resolution actions assigned to each flight
+        :param actions: dict of resolution actions assigned to each flight
         :return:
         """
         # RDC: here you should implement your resolution actions
         ##########################################################
-        return None
+
+        for f_id, action in actions.items():
+            f = self.flights[f_id]
+            f.airspeed = action
+
         ##########################################################
 
     def reward(self) -> Dict:
@@ -91,10 +95,32 @@ class FlightEnv(MultiAgentEnv):
         """
         # RDC: here you should implement your reward function
         ##########################################################
+        collision_penalty = -10
+        speed_penalty = -5
+        rews = {k: 0 for k in self.flights.keys()}
 
-        rews = {}
-        for i, f in self.flights.items():
-            rews[i] = 0
+        # collision penalty
+        for c in self.conflicts:
+            rews[c] += collision_penalty
+
+        # speed penalty: each flight's speed should be as close as possible to optimal speed
+        # for f_id, f in self.flights.items():
+        #     cur_speed = f.airspeed
+        #     optimal_speed = f.optimal_airspeed
+        #
+        #     diff_speed = cur_speed - optimal_speed
+        #
+        #     # flight is going slower than optimal
+        #     if diff_speed < 0:
+        #         max_diff = optimal_speed - self.min_speed
+        #         diff_speed = abs(diff_speed)
+        #         perc = diff_speed / max_diff
+        #         rews[f_id] = perc * speed_penalty
+        #     elif diff_speed > 0:
+        #         max_diff = self.max_speed - optimal_speed
+        #         perc = diff_speed / max_diff
+        #         rews[f_id] = perc * speed_penalty
+
         return rews
         ##########################################################
 
@@ -159,15 +185,28 @@ class FlightEnv(MultiAgentEnv):
         """
         # reset set
         self.conflicts = set()
+        # use list for less comparison
+        flight_list = list(self.flights.items())
 
-        for i in range(self.num_flights - 1):
-            if i not in self.done:
-                for j in range(i + 1, self.num_flights):
-                    if j not in self.done:
-                        distance = self.flights[i].position.distance(
-                            self.flights[j].position)
-                        if distance < self.min_distance:
-                            self.conflicts.update((i, j))
+        for idx in range(self.num_flights - 1):
+
+            fi_id, fi = flight_list[idx]
+
+            if self.done[fi_id]:
+                # skip done id
+                continue
+
+            for jdx in range(idx + 1, self.num_flights):
+
+                fj_id, fj = flight_list[jdx]
+
+                if self.done[fj_id]:
+                    # skip done id
+                    continue
+
+                distance = fi.position.distance(fj.position)
+                if distance < self.min_distance:
+                    self.conflicts.update((fi_id, fj_id))
 
     def update_done(self) -> None:
         """
@@ -211,11 +250,11 @@ class FlightEnv(MultiAgentEnv):
         # update positions
         self.update_positions()
 
-        # update done set
-        self.update_done()
-
         # update conflict set
         self.update_conflicts()
+
+        # update done set
+        self.update_done()
 
         # compute reward
         rew = self.reward()
@@ -237,8 +276,7 @@ class FlightEnv(MultiAgentEnv):
 
         self.done["__all__"] = all_done
 
-        done=copy(self.done)
-
+        done = copy(self.done)
 
         return rew, obs, done, {}
 
@@ -303,14 +341,14 @@ class FlightEnv(MultiAgentEnv):
                                                  (maxx, maxy),
                                                  (maxx, miny)],
                                                 filled=True)
-            background.set_color(*BLACK)
+            background.set_color(*WHITE)
             self.viewer.add_geom(background)
 
             # display airspace
             sector = rendering.make_polygon(
                 self.airspace.polygon.boundary.coords, filled=False)
             sector.set_linewidth(1)
-            sector.set_color(*WHITE)
+            sector.set_color(*BLACK)
             self.viewer.add_geom(sector)
 
         # add current positions
@@ -339,15 +377,15 @@ class FlightEnv(MultiAgentEnv):
             self.viewer.add_onetime(circle)
 
             # add fovs
-            fov_points = list(zip(*f.fov.exterior.coords.xy))[:-1]
-            fov = rendering.make_polygon(fov_points, filled=True)
-            # fov = rendering.make_polygon([(fov_points[0].x, fov_points[0].y),
-            #                               (fov_points[1].x, fov_points[1].y),
-            #                               (fov_points[2].x, fov_points[2].y),
-            #                               ],
-            #                              filled=True)
-            fov.set_color(*YELLOW)
-            self.viewer.add_onetime(fov)
+            # fov_points = list(zip(*f.fov.exterior.coords.xy))[:-1]
+            # fov = rendering.make_polygon(fov_points, filled=True)
+            # # fov = rendering.make_polygon([(fov_points[0].x, fov_points[0].y),
+            # #                               (fov_points[1].x, fov_points[1].y),
+            # #                               (fov_points[2].x, fov_points[2].y),
+            # #                               ],
+            # #                              filled=True)
+            # fov.set_color(*YELLOW)
+            # self.viewer.add_onetime(fov)
 
         self.viewer.render()
 
