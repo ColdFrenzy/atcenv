@@ -103,7 +103,7 @@ class FlightEnv(MultiAgentEnv):
         for c in self.conflicts:
             rews[c] += collision_penalty
 
-        # speed penalty: each flight's speed should be as close as possible to optimal speed
+        #speed penalty: each flight's speed should be as close as possible to optimal speed
         # for f_id, f in self.flights.items():
         #     cur_speed = f.airspeed
         #     optimal_speed = f.optimal_airspeed
@@ -148,7 +148,7 @@ class FlightEnv(MultiAgentEnv):
                         [self.flights[seen_agent_idx].position for seen_agent_idx in seen_agents_indices])
                     # take the 3 closest agent
                     for j in range(self.max_agent_seen):
-                        nearest_agent = nearest_points(origin, seen_agents)
+                        nearest_agent = nearest_points(origin, seen_agents)[1]
                         obs[j * 2:j * 2 + 2] = nearest_agent.x - \
                                                origin.x, nearest_agent.y - origin.y
                         seen_agents.difference(nearest_agent)
