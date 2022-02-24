@@ -119,9 +119,9 @@ class Environment(gym.Env):
                         [self.flights[seen_agent_idx].position for seen_agent_idx in seen_agents_indices])
                     # take the 3 closest agent
                     for j in range(self.max_agent_seen):
-                        nearest_agent = nearest_points(origin, seen_agents)
-                        obs[j * 2:j * 2 + 2] = nearest_agent.x - \
-                                               origin.x, nearest_agent.y - origin.y
+                        nearest_agent = nearest_points(origin, seen_agents)[1]
+                        obs[j*2:j*2+2] = nearest_agent.x - \
+                            origin.x, nearest_agent.y - origin.y
                         seen_agents.difference(nearest_agent)
             observations.append(obs)
 
