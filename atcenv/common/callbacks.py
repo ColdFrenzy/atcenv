@@ -65,10 +65,12 @@ class MyCallbacks(DefaultCallbacks):
 
         flights=list(env.flights.values())
 
-        avg_speed=[abs(f.optimal_airspeed-f.airspeed) for f in flights]
+        speed_diff=[abs(f.optimal_airspeed-f.airspeed) for f in flights]
 
         episode.custom_metrics["num_conflicts"] = self.num_conflicts/2
-        episode.custom_metrics["speed_diff"] = avg_speed
+        episode.custom_metrics["speed_diff"] = np.asarray(speed_diff).mean()
+        episode.custom_metrics["actions"] = np.asarray(env.logging_actions).mean()
+        episode.custom_metrics["non_zero_obs"] = np.asarray(env.logging_obs['non_zero']).mean()
         self.num_conflicts=0
 
 

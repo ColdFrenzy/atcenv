@@ -237,15 +237,15 @@ class FlightEnv(MultiAgentEnv):
                 f.position._set_coords(
                     position.x + dx * self.dt, position.y + dy * self.dt)
 
-    def step(self, action: dict) -> Tuple[Dict, Dict, Dict, Dict]:
+    def step(self, actions: dict) -> Tuple[Dict, Dict, Dict, Dict]:
         """
         Performs a simulation step
 
-        :param action: list of resolution actions assigned to each flight
+        :param actions: list of resolution actions assigned to each flight
         :return: observation, reward, done status and other information
         """
         # apply resolution actions
-        self.resolution(action)
+        self.resolution(actions)
 
         # update positions
         self.update_positions()
@@ -377,15 +377,16 @@ class FlightEnv(MultiAgentEnv):
             self.viewer.add_onetime(circle)
 
             # add fovs
-            # fov_points = list(zip(*f.fov.exterior.coords.xy))[:-1]
-            # fov = rendering.make_polygon(fov_points, filled=True)
-            # # fov = rendering.make_polygon([(fov_points[0].x, fov_points[0].y),
-            # #                               (fov_points[1].x, fov_points[1].y),
-            # #                               (fov_points[2].x, fov_points[2].y),
-            # #                               ],
-            # #                              filled=True)
-            # fov.set_color(*YELLOW)
-            # self.viewer.add_onetime(fov)
+            fov_points = list(zip(*f.fov.exterior.coords.xy))[:-1]
+            fov = rendering.make_polygon(fov_points, filled=True)
+            # fov = rendering.make_polygon([(fov_points[0].x, fov_points[0].y),
+            #                               (fov_points[1].x, fov_points[1].y),
+            #                               (fov_points[2].x, fov_points[2].y),
+            #                               ],
+            #                              filled=True)
+            #fov.set_color(*YELLOW)
+            fov._color.vec4 = (*YELLOW, 0.3)
+            self.viewer.add_onetime(fov)
 
         self.viewer.render()
 

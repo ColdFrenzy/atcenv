@@ -3,7 +3,7 @@ Definitions module
 """
 from shapely.geometry import Point, Polygon
 from dataclasses import dataclass, field
-import atcenv.units as u
+import atcenv.common.units as u
 import math
 import random
 from typing import Optional, Tuple, List
@@ -88,7 +88,7 @@ class Flight:
         return Point([self.position.x + dx * dt, self.position.y + dy * dt])
 
     @property
-    def fov(self, depth: Optional[float] = 50000., angle: Optional[float] = math.pi/6) -> Polygon:
+    def fov(self, depth: Optional[float] = 50000., angle: Optional[float] = math.pi/2) -> Polygon:
         """
         Returns the field of view of the given flight
         :return: polygon representing the agent's fov

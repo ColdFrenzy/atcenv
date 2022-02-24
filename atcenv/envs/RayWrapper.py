@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 import gym
 
@@ -15,17 +15,17 @@ class RayWrapper(FlightEnv):
 
         # define spaces
         # todo: check if low/high is correct
-        self.observation_space = gym.spaces.Box(low=-self.max_area, high=self.max_area, shape=(2 * self.max_agent_seen,))
+        self.observation_space = gym.spaces.Box(low=-self.max_area, high=self.max_area,
+                                                shape=(2 * self.max_agent_seen,))
         self.action_space = gym.spaces.Box(low=self.min_speed, high=self.max_speed, shape=(1,))
 
         self.done_ids = []
 
-    def step(self, action: Dict) -> Tuple[Dict, Dict, Dict, Dict]:
-
+    def step(self, actions: Dict) -> Tuple[Dict, Dict, Dict, Dict]:
         # ray returns an ndarray of one action, the env wants a float, so take first action
-        action={k:v[0] for k,v in action.items()}
+        actions = {k: v[0] for k, v in actions.items()}
 
-        rew, obs, done, info = super(RayWrapper, self).step(action)
+        rew, obs, done, info = super(RayWrapper, self).step(actions)
 
         # rllib doesn't want any input from previously done agents, so filter them out
         for done_id in self.done_ids:
@@ -39,3 +39,8 @@ class RayWrapper(FlightEnv):
         self.done_ids = list(set(self.done_ids))
 
         return obs, rew, done, info
+
+    def reset(self) -> Dict:
+        # empty the done list
+        self.done_ids = []
+        return super(RayWrapper, self).reset()
