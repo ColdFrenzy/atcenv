@@ -1,10 +1,12 @@
 from typing import Tuple, Dict, Optional
+import numpy as np
 
-def absolute_compass(n_dir: Optional[int] = 16) -> Dict[str, float]:
+def absolute_compass(n_dir: Optional[int] = 16) -> Dict[str, Tuple[float]]:
     """
-    Return an absolute compass made up by a specific numnber of directions (referring to the wind directions).
+    Return an absolute compass made up by a specific number of directions (referring to the wind directions).
     Angles (in degrees) are set by increasing them from 0° to 360° according to the desired number of directions:
-    they are supposed to increase clockwise starting from the North direction. 
+    they are supposed to increase clockwise starting from the North direction (assumed to be directed along towards Y axis).
+    Compass is assumed to be centered in (0,0). 
 
     :param n_dir: number of desired directions
     """
@@ -19,8 +21,8 @@ def absolute_compass(n_dir: Optional[int] = 16) -> Dict[str, float]:
     degree_incr = 360/n_dir
     # Degrees of each direction clockwise from the North: 
     cardinal_degrees = [degree_incr*i for i in range(n_dir)]
-    # Number of direction per quadrant (main directions excluded):
-    n_quad_dir = (n_dir-n_quad)/n_quad 
+    # Number of direction per quadrant (exluded the first main direction for the considered quadrant):
+    n_quad_dir = (n_dir-n_quad)/n_quad+1
     # Main quadrants degre ranges:
     q1 = range(0,90)
     q2 = range(90,180)
@@ -37,23 +39,27 @@ def absolute_compass(n_dir: Optional[int] = 16) -> Dict[str, float]:
             if deg==q1[0]:
                 card = 'N'
             else:
-                card = 'NE'  
+                card = 'NE'
+              
         elif int_deg in q2:
             if deg==q2[0]:
                 card = 'E'
             else:
                 card = 'SE'
+            
         elif int_deg in q3:
             if deg==q3[0]:
                 card = 'S'
             else:
-                card = 'SO'
+                card = 'SW'
+            
         elif int_deg in q4:
             if deg==q4[0]:
                 card = 'W'
             else:
                 card = 'NW'
-
+            
+        
         if cur_card_count!=0:
             card += str(cur_card_count)
 
@@ -62,6 +68,12 @@ def absolute_compass(n_dir: Optional[int] = 16) -> Dict[str, float]:
         else:
             cur_card_count += 1
 
+
+        # 'deg' is the angle between wind and North: 
         compass[card] = deg
-        
+
     return compass
+
+# Number of available wind directions:
+n_wind_dir = 16
+abs_compass = absolute_compass(n_wind_dir)
