@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 import atcenv.units as u
 import math
 import random
-from typing import Optional, Tuple, List
-
+import numpy as np
+from typing import Optional, Tuple, List, Dict
 
 @dataclass
 class Airspace:
@@ -43,7 +43,6 @@ class Airspace:
 
         return cls(polygon=polygon)
 
-
 @dataclass
 class Flight:
     """
@@ -78,14 +77,15 @@ class Flight:
         return (compass + u.circle) % u.circle
 
     @property
-    def prediction(self, dt: Optional[float] = 120) -> Point:
+    def heading_prediction(self, dt: Optional[float] = 120) -> Point:
         """
-        Predicts the future position after dt seconds, maintaining the current speed and track
-        :param dt: prediction look-ahead time (in seconds)
-        :return:
+        Predicts the future position after dt seconds related to the heading direction (wind effect not included)   
+        :param dt: prediction look-ahead time (in seconds) 
         """
         dx, dy = self.components
-        return Point([self.position.x + dx * dt, self.position.y + dy * dt])
+        return Point(self.position.x + dx*dt, self.position.y + dy*dt)
+
+    # Implementare l'HEADING per la visualizzazione --> !!!!!!!!!!!!!!!!!!!!!!!!
 
     @property
     def fov(self, depth: Optional[float] = 50000., angle: Optional[float] = math.pi/6) -> Polygon:
@@ -97,7 +97,7 @@ class Flight:
         # center = [self.flights[flight_id].position]
         center_x, center_y = self.position.x, self.position.y
         fov_vertices.append(Point(center_x, center_y))
-        bearing = self.bearing
+        bearing = self.track
         point_1_x = center_x + (depth *
                                 (math.cos((math.pi-(bearing+math.pi/2)) - angle/2)))
         point_1_y = center_y + (depth *
@@ -115,14 +115,15 @@ class Flight:
         return Polygon(fov_vertices)
         ##########################################################
 
-    @property
+    @property 
     def components(self) -> Tuple:
         """
         X and Y Speed components (in kt)
-        :return: speed components
-        """
-        dx = self.airspeed * math.sin(self.track)
+        :return: speed components (HEADING)
+        """        
+        dx = self.airspeed * math.sin(self.track) 
         dy = self.airspeed * math.cos(self.track)
+
         return dx, dy
 
     @property
