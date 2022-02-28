@@ -8,6 +8,8 @@ import math
 import numpy as np
 from typing import Dict, List
 from atcenv.definitions import *
+from atcenv.units import *
+from atcenv.utils import abs_compass
 from gym.envs.classic_control import rendering
 from shapely.geometry import LineString, MultiPoint
 from shapely.ops import nearest_points
@@ -35,6 +37,8 @@ class Environment(gym.Env):
                  min_distance: Optional[float] = 5.,
                  distance_init_buffer: Optional[float] = 5.,
                  max_agent_seen: Optional[int] = 3,
+                 wind_speed: Optional[float] = 300,
+                 wind_dir: Optional[str] = 'NW3',
                  **kwargs):
         """
         Initialises the environment
@@ -50,6 +54,8 @@ class Environment(gym.Env):
         :param distance_init_buffer: distance factor used when initialising the enviroment to avoid flights close to conflict and close to the target
         :param kwargs: other arguments of your custom environment
         :param max_agent_seen: maximum number of closest agents to consider in the partial observation
+        :param wind_speed: wind speed (in kt)
+        :param wind_dir: cardinal direction of the wind 
         """
         self.num_flights = num_flights
         self.max_area = max_area * (u.nm ** 2)
@@ -61,6 +67,8 @@ class Environment(gym.Env):
         self.distance_init_buffer = distance_init_buffer
         self.max_agent_seen = max_agent_seen
         self.dt = dt
+        self.wind_speed = wind_speed * u.kt
+        self.wind_dir = wind_dir
 
         # tolerance to consider that the target has been reached (in meters)
         self.tol = self.max_speed * 1.05 * self.dt
@@ -71,6 +79,7 @@ class Environment(gym.Env):
         self.conflicts = set()  # set of flights that are in conflict
         self.done = set()  # set of flights that reached the target
         self.i = None
+        self.wind_components = self.wind_effect()
 
     def resolution(self, action: List) -> None:
         """
@@ -148,6 +157,50 @@ class Environment(gym.Env):
         return seen_agents
         ##########################################################
 
+    def wind_effect(self) -> Tuple[float, float]:
+        """
+        Wind X and Y compoents
+        :return: tuple containing wind speed
+        """
+
+        assert self.wind_dir in abs_compass, 'Invalid wind direction seleted! Select a cardinal direction from' + str([key for key,val in abs_compass.items()]) 
+
+        # Angle beween the North and the wind direction:
+        alpha = math.radians(abs_compass[self.wind_dir])
+        
+        # Wind speed coordinates w.r.t. North Wind (it corresponds also to the wind speed coordinates w.r.t. agent position)
+        # These correspond also to the wind speed absolute components w.r.t. agent position (since we are assuming wind origin right in (0,0):
+        wsx = self.wind_speed*math.sin(alpha)
+        wsy = self.wind_speed*math.cos(alpha)
+
+        return (wsx, wsy)
+
+    def track_prediction(self, flight: Flight, dt: Optional[float] = 120) -> Point:
+        """
+        Predicts the future actual (track) position after dt seconds (wind effect included)
+
+        :param: flight: current flight
+        :param: dt: prediction look-ahead time (in seconds)
+        :return: current flight actual (track) position (wind effected included)
+        """
+        dx, dy = flight.components
+        dx += self.wind_components[0]
+        dy += self.wind_components[1]
+        return Point(flight.position.x + dx*dt, flight.position.y + dy*dt)
+
+    def wind_direction(self, flight: Flight, dt: Optional[float] = 120) -> Point:
+        """
+        Wind direction w.r.t. the current flight
+
+        :param: flight: current flight
+        :param: dt: prediction look-ahead time (in seconds)
+        :return: wind applied on the current flight
+        """
+        dx = self.wind_components[0]
+        dy = self.wind_components[1]
+        return Point(flight.position.x + dx*dt, flight.position.y + dy*dt)
+
+
     def update_conflicts(self) -> None:
         """
         Updates the set of flights that are in conflict
@@ -187,7 +240,13 @@ class Environment(gym.Env):
             if i not in self.done:
                 # get current speed components
                 dx, dy = f.components
+                # get the current wind components
+                ws_x, ws_y = self.wind_components 
 
+                # add wind components (if any)
+                dx += ws_x
+                dy += ws_y
+                
                 # get current position
                 position = f.position
 
@@ -321,9 +380,9 @@ class Environment(gym.Env):
 
             plan = LineString([f.position, f.target])
             self.viewer.draw_polyline(plan.coords, linewidth=1, color=color)
-            prediction = LineString([f.position, f.prediction])
+            track_prediction = LineString([f.position, self.track_prediction(flight=f)])
             self.viewer.draw_polyline(
-                prediction.coords, linewidth=4, color=color)
+                track_prediction.coords, linewidth=4, color=color)
 
             self.viewer.add_onetime(circle)
 
@@ -336,7 +395,21 @@ class Environment(gym.Env):
             #                               ],
             #                              filled=True)
             fov.set_color(*YELLOW)
-            self.viewer.add_onetime(fov)
+            # Set transparency on UAVs FOV:
+            fov_color = list(fov._color.vec4)
+            fov_color[3] = 0.3
+            fov._color.vec4 = fov_color
+            self.viewer.add_onetime(fov)            
+
+            # add heading 
+            heading = LineString([f.position, f.heading_prediction])
+            self.viewer.draw_polyline(heading.coords, linewidth=4, color=YELLOW)
+
+            # add wind
+            wind_comp = self.wind_direction(flight=f)
+            wind = LineString([f.position, wind_comp])
+            self.viewer.draw_polyline(wind.coords, linewidth=4, color=GREEN)
+
 
         self.viewer.render()
 
