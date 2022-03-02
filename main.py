@@ -38,6 +38,7 @@ if __name__ == "__main__":
     for e in tqdm(range(args.episodes)):
         # reset environment
         obs = env.reset()
+        rews=0
 
         # set done status to false
         done = False
@@ -48,7 +49,9 @@ if __name__ == "__main__":
             # perform step with dummy action
             rew, obs, done, info = env.step(random_policy())
             env.render()
-            time.sleep(0.05)
+            rews+=sum(rew.values())/len(rew.keys())
+            #time.sleep(0.01)
 
         # close rendering
+        print(rews/100)
         env.close()

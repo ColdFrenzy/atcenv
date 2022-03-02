@@ -1,77 +1,74 @@
 import ray as ray
-import torch
 from ray import tune
 from ray.rllib.agents import ppo
 from ray.tune.integration.wandb import WandbLoggerCallback
 
 from atcenv.common.callbacks import MyCallbacks
+from atcenv.common.rllib_configs import multi_agent_configs, eval_configs, resources_configs, ppo_configs, model_configs
 from atcenv.common.utils import parse_args
 from atcenv.envs import get_env_cls
 
-args = parse_args()
+if __name__ == '__main__':
 
-ray.init(local_mode=True if args.debug else False,
-         num_gpus=0 if args.debug else 1,
-         num_cpus=0 if args.debug else 6,
-         )
-env_config = vars(args.env)
+    args = parse_args()
 
-env_cls= get_env_cls()
+    ##########################
+    #   Init ray with degub options
+    ##########################
 
-tmp = env_cls(env_config)
+    ray.init(local_mode=True if args.debug else False,
+             num_gpus=0 if args.debug else 1,
+             num_cpus=0 if args.debug else 6,
+             )
+    env_cls = get_env_cls()
 
-config = {
-    "env": env_cls,
-    "env_config": env_config,  # config to pass to env class
-    "framework": "torch",
-    "num_workers": 0 if args.debug else 3,
-    "num_gpus": 0 if args.debug else 1,
-    "callbacks": MyCallbacks,
-    "multiagent": {
-        "policies": {
-            "default": (None, tmp.observation_space,
-                        tmp.action_space, {}),
+    config = {
+        "env": env_cls,
+        "framework": "torch",
+        "callbacks": MyCallbacks,
 
-        },
-        "policy_mapping_fn": lambda x: "default",
-    },
-    # Evaluate once per training iteration.
-    "evaluation_interval": 1,
-    # Run evaluation on (at least) two episodes
-    "evaluation_duration": 2,
-    # ... using one evaluation worker (setting this to 0 will cause
-    # evaluation to run on the local evaluation worker, blocking
-    # training until evaluation is done).
-    "evaluation_num_workers": 1,
-    # Special evaluation config. Keys specified here will override
-    # the same keys in the main config, but only for evaluation.
-    "evaluation_config": {
-        # Store videos in this relative directory here inside
-        # the default output dir (~/ray_results/...).
-        # Alternatively, you can specify an absolute path.
-        # Set to True for using the default output dir (~/ray_results/...).
-        # Set to False for not recording anything.
-        # "record_env": "videos",
-        # "record_env": "/Users/xyz/my_videos/",
-        # Render the env while evaluating.
-        # Note that this will always only render the 1st RolloutWorker's
-        # env and only the 1st sub-env in a vectorized env.
-        "render_env": False,
-    },
-}
+    }
 
-wandb = WandbLoggerCallback(
-    project="atcenv"
-)
+    ##########################
+    #   Update config dict
+    ##########################
+    env_config = dict(env_config=vars(args.env))
+    tmp = env_cls(env_config)
 
-callbakcs = []
+    ma_configs = multi_agent_configs(args, tmp.observation_space, tmp.action_space)
+    e_configs = eval_configs(args)
+    r_configs = resources_configs(args)
+    p_configs = ppo_configs(args)
+    m_configs= model_configs(args)
 
-if not args.debug:
+    config.update(ma_configs)
+    config.update(e_configs)
+    config.update(r_configs)
+    config.update(env_config)
+    config.update(p_configs)
+    config.update(m_configs)
+
+    ##########################
+    #   Define tune loggers
+    ##########################
+    callbakcs = []
+
+    wandb = WandbLoggerCallback(
+        project="atcenv",
+        monitor_gym=True,
+        mode="disabled" if args.debug else "online"
+    )
+
+
     callbakcs.append(wandb)
 
-tune.run(
-    ppo.PPOTrainer,
-    config=config,
-    name="ppo_trainer",
-    callbacks=callbakcs,
-)
+    ##########################
+    #   Start Training
+    ##########################
+
+    tune.run(
+        ppo.PPOTrainer,
+        config=config,
+        name="ppo_trainer",
+        callbacks=callbakcs,
+    )
