@@ -204,7 +204,7 @@ def eval_configs(args):
             # Set to True for using the default output dir (~/ray_results/...).
             # Set to False for not recording anything.
             # "record_env": "videos",
-            # "record_env": "/Users/xyz/my_videos/",
+            "record_env": f"{args.cur_dir}/videos",
             # Render the env while evaluating.
             # Note that this will always only render the 1st RolloutWorker's
             # env and only the 1st sub-env in a vectorized env.

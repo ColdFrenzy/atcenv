@@ -3,7 +3,7 @@ from ray import tune
 from ray.rllib.agents import ppo
 from ray.tune.integration.wandb import WandbLoggerCallback
 
-from atcenv.common.callbacks import MyCallbacks
+from atcenv.common.callbacks import MyCallbacks, MediaWandbLogger
 from atcenv.common.rllib_configs import multi_agent_configs, eval_configs, resources_configs, ppo_configs, model_configs
 from atcenv.common.utils import parse_args
 from atcenv.envs import get_env_cls
@@ -53,7 +53,8 @@ if __name__ == '__main__':
     ##########################
     callbakcs = []
 
-    wandb = WandbLoggerCallback(
+    wandb = MediaWandbLogger(
+        vide_dir=e_configs['evaluation_config']['record_env'],
         project="atcenv",
         monitor_gym=True,
         mode="disabled" if args.debug else "online"

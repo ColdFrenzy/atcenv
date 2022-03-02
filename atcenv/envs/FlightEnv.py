@@ -543,7 +543,7 @@ class FlightEnv(MultiAgentEnv):
             fov._color.vec4 = (*YELLOW, 0.3)
             self.viewer.add_onetime(fov)
 
-        self.viewer.render()
+        return self.viewer.render(mode == "rgb_array")
 
     def close(self) -> None:
         """

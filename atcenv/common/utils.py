@@ -1,3 +1,5 @@
+import os
+
 from jsonargparse import ActionConfigFile
 from jsonargparse import ArgumentParser
 
@@ -17,6 +19,7 @@ def parse_args():
     parser.add_argument('--episodes', type=int, default=30)
     parser.add_argument('--config', action=ActionConfigFile)
     parser.add_argument('-debug', action="store_true")
+    parser.add_argument('-cur_dir', default=os.getcwd())
     parser.add_class_arguments(FlightEnv, 'env')
 
     # parse arguments
