@@ -17,7 +17,10 @@ class LoggerWrapper(RayWrapper):
         self.logging_obs = {}
 
     def reset(self) -> Dict:
-        self.logging_actions = []
+        self.logging_actions = dict(
+            accel=[],
+            track=[]
+        )
         self.logging_obs = dict(
             non_zero=[]
 
@@ -28,12 +31,16 @@ class LoggerWrapper(RayWrapper):
         obs, rew, done, info = super(LoggerWrapper, self).step(actions)
 
         # log mean actions
-        actions = [x[0] for x in actions.values()]
-        actions=np.asarray(actions).mean()
-        self.logging_actions.append(actions)
+        accel = [x["accel"] for x in actions.values()]
+        track = [x["track"] for x in actions.values()]
+
+        accel = np.asarray(accel).mean()
+        track = np.asarray(track).mean()
+        self.logging_actions['accel'].append(accel)
+        self.logging_actions['track'].append(track)
 
         # log non zero observations
-        non_zero_obs = sum([np.count_nonzero(x) for x in obs.values()])
+        non_zero_obs = sum([np.count_nonzero(x['agents_in_fov']) for x in obs.values()])
         self.logging_obs['non_zero'].append(non_zero_obs)
 
         return obs, rew, done, info

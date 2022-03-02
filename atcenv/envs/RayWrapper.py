@@ -15,17 +15,29 @@ class RayWrapper(FlightEnv):
 
         # define spaces
         # todo: check if low/high is correct
-        self.observation_space = gym.spaces.Box(low=-self.max_area, high=self.max_area,
-                                                shape=(2 * self.max_agent_seen,))
-        self.action_space = gym.spaces.Box(low=self.min_speed, high=self.max_speed, shape=(1,))
+        self.observation_space = gym.spaces.Dict({
+            "velocity": gym.spaces.Box(low=0, high=1, shape=(1,)),
+            "bearing": gym.spaces.Box(low=0, high=1, shape=(1,)),
+            "agents_in_fov": gym.spaces.Box(low=0, high=1, shape=(2 * self.max_agent_seen,)),
+
+        }
+
+        )
+
+        self.action_space = gym.spaces.Dict({
+            "track": gym.spaces.Box(low=0, high=1, shape=(1,)),
+            "accel": gym.spaces.Box(low=0, high=1, shape=(1,)),
+        })
 
         self.done_ids = []
 
     def step(self, actions: Dict) -> Tuple[Dict, Dict, Dict, Dict]:
-        # ray returns an ndarray of one action, the env wants a float, so take first action
-        actions = {k: v[0] for k, v in actions.items()}
 
         rew, obs, done, info = super(RayWrapper, self).step(actions)
+        # todo:
+        #   - rewards:
+        #       - discostamento da traiettoria (?)
+
 
         # rllib doesn't want any input from previously done agents, so filter them out
         for done_id in self.done_ids:

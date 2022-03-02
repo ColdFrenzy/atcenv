@@ -2,7 +2,7 @@
 Environment module
 """
 from copy import copy
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
 from gym.envs.classic_control import rendering
@@ -21,6 +21,10 @@ RED = [255, 0, 0]
 YELLOW = [255, 255, 0]
 
 
+def min_max_normalizer(val, min_, max_):
+    return (val - min_) / (max_ - min_)
+
+
 class FlightEnv(MultiAgentEnv):
     metadata = {'render.modes': ['rgb_array']}
 
@@ -31,11 +35,15 @@ class FlightEnv(MultiAgentEnv):
                  min_area: Optional[float] = 125. * 125.,
                  max_speed: Optional[float] = 500.,
                  min_speed: Optional[float] = 400,
+                 max_accel: Optional[float] = 10,
+                 min_accel: Optional[float] = -10,
+                 max_bearing: Optional[float] = 15,
+                 min_bearing: Optional[float] = -15,
                  max_episode_len: Optional[int] = 300,
                  min_distance: Optional[float] = 5.,
                  distance_init_buffer: Optional[float] = 5.,
                  max_agent_seen: Optional[int] = 3,
-                 wind_speed: Optional[float] = 300,
+                 wind_speed: Optional[float] = 0,
                  wind_dir: Optional[str] = 'NW3',
                  **kwargs):
         """
@@ -60,6 +68,10 @@ class FlightEnv(MultiAgentEnv):
         self.min_area = min_area * (u.nm ** 2)
         self.max_speed = max_speed * u.kt
         self.min_speed = min_speed * u.kt
+        self.max_accel = max_accel * u.kt
+        self.min_accel = min_accel * u.kt
+        self.max_bearing = math.radians(max_bearing)
+        self.min_bearing = math.radians(min_bearing)
         self.min_distance = min_distance * u.nm
         self.max_episode_len = max_episode_len
         self.distance_init_buffer = distance_init_buffer
@@ -92,7 +104,15 @@ class FlightEnv(MultiAgentEnv):
 
         for f_id, action in actions.items():
             f = self.flights[f_id]
-            f.airspeed = action
+
+            assert 0 <= action['accel'] <= 1, f"Acceleration is not in range [0,1], got 'action['accel']'"
+            assert 0 <= action['track'] <= 1, f"track is not in range [0,1], got 'action['track']'"
+            # denormalize acceleration and change airspeed clipping based on max/min speed allowed
+            accel = action['accel'] * (self.max_accel - self.min_accel) + self.min_accel
+            new_speed = np.clip(f.airspeed - accel, self.min_speed, self.max_speed)
+            f.airspeed = float(new_speed)
+            # denormalize track and assign
+            f.track = action['track'] * (self.max_bearing - self.min_bearing) + self.min_bearing
 
         ##########################################################
 
@@ -101,33 +121,66 @@ class FlightEnv(MultiAgentEnv):
         Returns the reward assigned to each agent
         :return: reward assigned to each agent
         """
+
         # RDC: here you should implement your reward function
         ##########################################################
-        collision_penalty = -10
-        speed_penalty = -5
+
+        def speed_penalty(f, weight):
+            """
+            each flight's speed should be as close as possible to optimal speed
+
+            """
+            cur_speed = f.airspeed
+            optimal_speed = f.optimal_airspeed
+
+            diff_speed = cur_speed - optimal_speed
+            perc = 0
+            # flight is going slower than optimal
+            if diff_speed < 0:
+                max_diff = optimal_speed - self.min_speed
+                diff_speed = abs(diff_speed)
+                perc = diff_speed / max_diff
+            elif diff_speed > 0:
+                max_diff = self.max_speed - optimal_speed
+                perc = diff_speed / max_diff
+
+            return perc * weight
+
+        def target_dist(f) -> float:
+            """
+            Return the normalized distance between the flight and its target
+            """
+            dist = f.position.distance(f.target)
+            # fixme: is it correct for normalization?
+            dist /= self.airspace.polygon.length
+
+            assert 0 <= dist <= 1, f"Distance in not normalized, got 'dist'"
+            return dist
+
+        def target_reached(f) -> bool:
+            """
+            Check if the flight has reached the target
+            """
+
+            dist = f.position.distance(f.target)
+
+            if dist < self.tol:
+                return True
+            return False
+
+        collision_weight = -1
+        dist_weight = -1
+        target_reached_w = +1
         rews = {k: 0 for k in self.flights.keys()}
+
+        for f_id, flight in self.flights.items():
+            rews[f_id] += target_dist(flight) * dist_weight
+            if target_reached(flight):
+                rews[f_id] += target_reached_w
 
         # collision penalty
         for c in self.conflicts:
-            rews[c] += collision_penalty
-
-        #speed penalty: each flight's speed should be as close as possible to optimal speed
-        # for f_id, f in self.flights.items():
-        #     cur_speed = f.airspeed
-        #     optimal_speed = f.optimal_airspeed
-        #
-        #     diff_speed = cur_speed - optimal_speed
-        #
-        #     # flight is going slower than optimal
-        #     if diff_speed < 0:
-        #         max_diff = optimal_speed - self.min_speed
-        #         diff_speed = abs(diff_speed)
-        #         perc = diff_speed / max_diff
-        #         rews[f_id] = perc * speed_penalty
-        #     elif diff_speed > 0:
-        #         max_diff = self.max_speed - optimal_speed
-        #         perc = diff_speed / max_diff
-        #         rews[f_id] = perc * speed_penalty
+            rews[c] += collision_weight
 
         return rews
         ##########################################################
@@ -138,18 +191,41 @@ class FlightEnv(MultiAgentEnv):
         np.array of dimension 2*self.max_agent_seen. It represents the distances
         (dx, dy) with the self.max_agent_seen closest flights
         :return: observation of each agent
+            Each agents' observation is made up of:
+                - velocity : float [0,1] : normalized velocity [min_speed, max_speed]
+                - bearing : float [0,1] : normalized bearing [0, 2*pi]
+                - agents_in_fov : ndarray of shape (2*max_seen_agents) range [0,1] : a vector of normalized polar
+                    coordinates of agents in fov, first max_seen_agents are the angles and the last the distances
         """
-        observations = {}
-        for i, flight in self.flights.items():
-            obs = np.zeros(self.max_agent_seen * 2, dtype=np.float32)
-            origin = flight.position
+
+        def polar_distance(f: Flight):
+            """
+            Computes the normalized polar distance between a flight and all the other flights in the current field of view
+
+            @params : flight :
+
+            @returns:
+                angles:
+                dist: normalized distance (1 is max fov depth)
+            """
+
+            angles = np.zeros(self.max_agent_seen, dtype=np.float32)
+            dists = np.zeros(self.max_agent_seen, dtype=np.float32)
+
+            origin = f.position
             seen_agents_indices = self.flights_in_fov(i)
             if len(seen_agents_indices) != 0:
                 # if we saw less agents than the maximum number, we pick all of them
                 if len(seen_agents_indices) <= self.max_agent_seen:
                     for j, seen_agent_idx in enumerate(seen_agents_indices):
-                        obs[j * 2:j * 2 + 2] = self.flights[seen_agent_idx].position.x - origin.x, \
-                                               self.flights[seen_agent_idx].position.y - origin.y
+                        x_dist = self.flights[seen_agent_idx].position.x - origin.x
+                        y_dist = self.flights[seen_agent_idx].position.y - origin.y
+                        # fixme: check if right
+                        angles[j] = min_max_normalizer(np.arctan2(x_dist, y_dist), -math.pi, math.pi)
+                        dists[j] = math.dist([self.flights[seen_agent_idx].position.x,
+                                              self.flights[seen_agent_idx].position.y],
+                                             [origin.x, origin.y]) / f.fov_depth
+
                 else:
                     # set of points of all the agents in the fov
                     seen_agents = MultiPoint(
@@ -157,15 +233,36 @@ class FlightEnv(MultiAgentEnv):
                     # take the 3 closest agent
                     for j in range(self.max_agent_seen):
                         nearest_agent = nearest_points(origin, seen_agents)[1]
-                        obs[j * 2:j * 2 + 2] = nearest_agent.x - \
-                                               origin.x, nearest_agent.y - origin.y
-                        seen_agents.difference(nearest_agent)
-            observations[i] = obs
+                        x_dist = nearest_agent.x - origin.x
+                        y_dist = nearest_agent.y - origin.y
+                        # fixme: check if right
+                        angles[j] = min_max_normalizer(np.arctan2(x_dist, y_dist), -math.pi, math.pi)
+                        dists[j] = math.dist([nearest_agent.x,
+                                              nearest_agent.y],
+                                             [origin.x, origin.y]) / f.fov_depth
 
-        # RDC: here you should implement your observation function
-        ##########################################################
+                        seen_agents.difference(nearest_agent)
+            return angles, dists
+
+        observations = {}
+        for i, flight in self.flights.items():
+            observations[i] = {}
+            # compute observations and normalizations
+            v = min_max_normalizer(flight.airspeed, self.max_speed, self.min_speed)
+            b = min_max_normalizer(flight.bearing, 0, 2 * math.pi)
+            angles, dists = polar_distance(flight)
+            obs = np.concatenate([angles, dists])
+
+            #
+            assert 0 <= v <= 1, f"Airspeed is not in range [0,1]. Got '{v}'"
+            assert 0 <= b <= 1, f"Bearing is not in range [0,1]. Got '{b}'"
+            assert all([0 <= x <= 1 for x in obs]), f"obs is not in range [0,1]. Got '{obs}'"
+
+            observations[i]['velocity'] = np.asarray([v])
+            observations[i]['bearing'] = np.asarray([b])
+            observations[i]['agents_in_fov'] = obs
+
         return observations
-        ##########################################################
 
     def flights_in_fov(self, flight_id: int) -> List:
         """
@@ -191,15 +288,16 @@ class FlightEnv(MultiAgentEnv):
         :return: tuple containing wind speed
         """
 
-        assert self.wind_dir in abs_compass, 'Invalid wind direction seleted! Select a cardinal direction from' + str([key for key,val in abs_compass.items()]) 
+        assert self.wind_dir in abs_compass, 'Invalid wind direction seleted! Select a cardinal direction from' + str(
+            [key for key, val in abs_compass.items()])
 
         # Angle beween the North and the wind direction:
         alpha = math.radians(abs_compass[self.wind_dir])
-        
+
         # Wind speed coordinates w.r.t. North Wind (it corresponds also to the wind speed coordinates w.r.t. agent position)
         # These correspond also to the wind speed absolute components w.r.t. agent position (since we are assuming wind origin right in (0,0):
-        wsx = self.wind_speed*math.sin(alpha)
-        wsy = self.wind_speed*math.cos(alpha)
+        wsx = self.wind_speed * math.sin(alpha)
+        wsy = self.wind_speed * math.cos(alpha)
 
         return (wsx, wsy)
 
@@ -214,7 +312,7 @@ class FlightEnv(MultiAgentEnv):
         dx, dy = flight.components
         dx += self.wind_components[0]
         dy += self.wind_components[1]
-        return Point(flight.position.x + dx*dt, flight.position.y + dy*dt)
+        return Point(flight.position.x + dx * dt, flight.position.y + dy * dt)
 
     def wind_direction(self, flight: Flight, dt: Optional[float] = 120) -> Point:
         """
@@ -226,8 +324,7 @@ class FlightEnv(MultiAgentEnv):
         """
         dx = self.wind_components[0]
         dy = self.wind_components[1]
-        return Point(flight.position.x + dx*dt, flight.position.y + dy*dt)
-
+        return Point(flight.position.x + dx * dt, flight.position.y + dy * dt)
 
     def update_conflicts(self) -> None:
         """
@@ -282,12 +379,12 @@ class FlightEnv(MultiAgentEnv):
                 # get current speed components
                 dx, dy = f.components
                 # get the current wind components
-                ws_x, ws_y = self.wind_components 
+                ws_x, ws_y = self.wind_components
 
                 # add wind components (if any)
                 dx += ws_x
                 dy += ws_y
-                
+
                 # get current position
                 position = f.position
 
@@ -428,7 +525,7 @@ class FlightEnv(MultiAgentEnv):
 
             plan = LineString([f.position, f.target])
             self.viewer.draw_polyline(plan.coords, linewidth=1, color=color)
-            prediction = LineString([f.position, f.prediction])
+            prediction = LineString([f.position, f.heading_prediction])
             self.viewer.draw_polyline(
                 prediction.coords, linewidth=4, color=color)
 
@@ -442,7 +539,7 @@ class FlightEnv(MultiAgentEnv):
             #                               (fov_points[2].x, fov_points[2].y),
             #                               ],
             #                              filled=True)
-            #fov.set_color(*YELLOW)
+            # fov.set_color(*YELLOW)
             fov._color.vec4 = (*YELLOW, 0.3)
             self.viewer.add_onetime(fov)
 

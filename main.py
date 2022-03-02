@@ -11,13 +11,16 @@ import time
 from tqdm import tqdm
 
 
-def random_action(flight_ids, min_speed, max_speed):
+def random_action(flight_ids):
 
     def inner():
 
         actions={}
         for f_id in flight_ids:
-            actions[f_id]=random.uniform(min_speed, max_speed)
+            actions[f_id]=dict(
+                accel=random.random(),
+                track=random.random(),
+            )
         return actions
 
     return inner
@@ -32,7 +35,7 @@ if __name__ == "__main__":
     env = FlightEnv(**vars(args.env))
     obs = env.reset()
 
-    random_policy=random_action(env.flights.keys(), env.min_speed, env.max_speed)
+    random_policy=random_action(env.flights.keys())
 
     # run episodes
     for e in tqdm(range(args.episodes)):

@@ -49,7 +49,7 @@ def model_configs(args):
 
             # == LSTM ==
             # Whether to wrap the model with an LSTM.
-            "use_lstm": True,
+            "use_lstm": False,
             # Max seq len for training the LSTM, defaults to 20.
             "max_seq_len": 20,
             # Size of the LSTM cell.

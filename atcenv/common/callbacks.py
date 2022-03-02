@@ -69,7 +69,8 @@ class MyCallbacks(DefaultCallbacks):
 
         episode.custom_metrics["num_conflicts"] = self.num_conflicts/2
         episode.custom_metrics["speed_diff"] = float(np.asarray(speed_diff).mean())
-        episode.custom_metrics["actions"] = float(np.asarray(env.logging_actions).mean())
+        episode.custom_metrics["actions_accel"] = float(np.asarray(env.logging_actions['accel']).mean())
+        episode.custom_metrics["actions_track"] = float(np.asarray(env.logging_actions['track']).mean())
         episode.custom_metrics["non_zero_obs"] = float(np.asarray(env.logging_obs['non_zero']).mean())
         self.num_conflicts=0
 

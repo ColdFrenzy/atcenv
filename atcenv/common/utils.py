@@ -1,10 +1,7 @@
-from typing import Dict, Optional
-
 from jsonargparse import ActionConfigFile
 from jsonargparse import ArgumentParser
 
 from atcenv.envs import FlightEnv
-
 
 
 def parse_args():
@@ -26,3 +23,4 @@ def parse_args():
     args = parser.parse_args()
 
     return args
+

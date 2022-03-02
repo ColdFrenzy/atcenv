@@ -1,13 +1,15 @@
 """
 Definitions module
 """
-from shapely.geometry import Point, Polygon
-from dataclasses import dataclass, field
-import atcenv.common.units as u
 import math
 import random
-import numpy as np
-from typing import Optional, Tuple, List, Dict
+from dataclasses import dataclass, field
+from typing import Optional, Tuple
+
+from shapely.geometry import Point, Polygon
+
+import atcenv.common.units as u
+
 
 @dataclass
 class Airspace:
@@ -43,6 +45,7 @@ class Airspace:
 
         return cls(polygon=polygon)
 
+
 @dataclass
 class Flight:
     """
@@ -52,6 +55,8 @@ class Flight:
     target: Point
     optimal_airspeed: float
     flight_id: int
+    fov_depth: float
+    fov_angle: float
 
     airspeed: float = field(init=False)
     track: float = field(init=False)
@@ -83,12 +88,12 @@ class Flight:
         :param dt: prediction look-ahead time (in seconds) 
         """
         dx, dy = self.components
-        return Point(self.position.x + dx*dt, self.position.y + dy*dt)
+        return Point(self.position.x + dx * dt, self.position.y + dy * dt)
 
     # Implementare l'HEADING per la visualizzazione --> !!!!!!!!!!!!!!!!!!!!!!!!
 
     @property
-    def fov(self, depth: Optional[float] = 50000., angle: Optional[float] = math.pi/2) -> Polygon:
+    def fov(self) -> Polygon:
         """
         Returns the field of view of the given flight
         :return: polygon representing the agent's fov
@@ -98,15 +103,15 @@ class Flight:
         center_x, center_y = self.position.x, self.position.y
         fov_vertices.append(Point(center_x, center_y))
         bearing = self.track
-        point_1_x = center_x + (depth *
-                                (math.cos((math.pi-(bearing+math.pi/2)) - angle/2)))
-        point_1_y = center_y + (depth *
-                                (math.sin((math.pi-(bearing+math.pi/2)) - angle/2)))
+        point_1_x = center_x + (self.fov_depth *
+                                (math.cos((math.pi - (bearing + math.pi / 2)) - self.fov_angle / 2)))
+        point_1_y = center_y + (self.fov_depth *
+                                (math.sin((math.pi - (bearing + math.pi / 2)) - self.fov_angle / 2)))
         fov_vertices.append(Point(point_1_x, point_1_y))
-        point_2_x = center_x + (depth *
-                                (math.cos((math.pi-(bearing+math.pi/2)) + angle/2)))
-        point_2_y = center_y + (depth *
-                                (math.sin((math.pi-(bearing+math.pi/2)) + angle/2)))
+        point_2_x = center_x + (self.fov_depth *
+                                (math.cos((math.pi - (bearing + math.pi / 2)) + self.fov_angle / 2)))
+        point_2_y = center_y + (self.fov_depth *
+                                (math.sin((math.pi - (bearing + math.pi / 2)) + self.fov_angle / 2)))
         # point_2 = depth*((math.cos(self.flights[flight_id].bearing + angle/2))**2 + (
         #     math.sin(self.flights[flight_id].bearing + angle/2))**2)
         fov_vertices.append(Point(point_2_x, point_2_y))
@@ -115,13 +120,13 @@ class Flight:
         return Polygon(fov_vertices)
         ##########################################################
 
-    @property 
+    @property
     def components(self) -> Tuple:
         """
         X and Y Speed components (in kt)
         :return: speed components (HEADING)
-        """        
-        dx = self.airspeed * math.sin(self.track) 
+        """
+        dx = self.airspeed * math.sin(self.track)
         dy = self.airspeed * math.cos(self.track)
 
         return dx, dy
@@ -153,7 +158,8 @@ class Flight:
             return u.circle - drift
 
     @classmethod
-    def fixed(cls, airspace: Airspace, position: Point, min_speed: float, max_speed: float, flight_id: int, tol: float = 0.):
+    def fixed(cls, airspace: Airspace, position: Point, min_speed: float, max_speed: float, flight_id: int,
+              tol: float = 0.):
         """
         Creates a fixed flight
 
@@ -181,7 +187,7 @@ class Flight:
         return cls(position, target, airspeed, flight_id)
 
     @classmethod
-    def random(cls, airspace: Airspace, min_speed: float, max_speed: float, flight_id: int, tol: float = 0.,):
+    def random(cls, airspace: Airspace, min_speed: float, max_speed: float, flight_id: int, tol: float = 0., ):
         """
         Creates a random flight
 
@@ -192,6 +198,7 @@ class Flight:
         :param tol: tolerance to consider that the target has been reached (in meters)
         :return: random flight
         """
+
         def random_point_in_polygon(polygon: Polygon) -> Point:
             minx, miny, maxx, maxy = polygon.bounds
             while True:
@@ -203,7 +210,6 @@ class Flight:
         # random position
         position = random_point_in_polygon(airspace.polygon)
 
-
         # random target
         boundary = airspace.polygon.boundary
         while True:
@@ -214,5 +220,7 @@ class Flight:
 
         # random speed
         airspeed = random.uniform(min_speed, max_speed)
+        fov_depth = 5000
+        fov_angle = math.pi / 2
 
-        return cls(position, target, airspeed, flight_id)
+        return cls(position, target, airspeed, flight_id, fov_depth=fov_depth, fov_angle=fov_angle)
