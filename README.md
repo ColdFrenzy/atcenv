@@ -1,12 +1,17 @@
-# Conflict resolution environment
+# Wind environment
 
-This is the conflict resolution environment for the Challenge #2 of the EUROCONTROL Innovation Masterclass
+Now it is possible to set the wind speed (in kt) and its cardinal direction in _env.py_ and the number _n_wind_dir_ of available wind directions (e.g., N, E, S, W) in _atcenv/utils.py_.
+Thus, if you set _n_wind_dir_=4, then you will be able to choose bewteen [N,E,S,W] cardinal directions when apply the wind noise. If you set instead _n_wind_dir_=16, then you will be able to choose between [N, NE1, NE2, NE3, E, SE1, SE2, SE3, S, SW1, SW2, SW3, W, NW1, NW2, NW3]. Remeber that _n_wind_dir_ must be obviously a multiple of 4 (which is the number of the 4 main quadrants).
 
-## Statement of work
+Here below it is shown a snapshot of this windy environemnt.
 
-Artificial intelligence has been declared successful in providing decision support in a variety of real-world applications. Many of these accomplishments have been made possible by recent advancements in reinforcement learning (RL) algorithms. In short, RL algorithms can be used to discover the best strategy (policy in the machine learning jargon) for a wide range of difficult tasks simply by learning from the experiences of the agent interacting with the environment. The policy is typically a neural network that takes as input the state of the environment as observed by the agent and determines the best action to maximize the return (cumulative discounted reward).
+![windy env](Images/wind_env_screen.png)
 
-Recently, EUROCONTROL has implemented a reinforcement learning system for training Air Traffic Control (ATC) policies. The current system is composed of (1) a relatively simple ATC simulator that generates experiences, and (2) a learner based on the Proximal Policy Optimisation (PPO) algorithm that uses these experiences to continuously improve the policy. Initial results showed that the optimal policy that minimises the losses of separation and the environmental impact could be learned from scratch with RL. These promising findings encouraged us to take you on-board of this challenge!
+In this screenshot are rerepsented the following features:
+  - long thin blue line: distance between the current agent and its target;
+  - short thick yellow line: heading speed direction;
+  - short thick green line: wind speed direction;
+  - short thick blue line: track speed direction (i.e., the astual agent speed vector resulting from the combination of heading and wind speed vectors).
 
 At present, however, the ATC simulator does not consider the vertical dimension (i.e., all aircraft are assumed to be at the same altitude), and consequently the policy can only learn speed and/or heading resolution actions. Furthermore, the simulator does not include uncertainty, meaning that the policy may not perform well in real-life situations, where uncertainty is inevitable. Last but not least, the PPO algorithm was not explicitly designed for multi-agent environments, and therefore other algorithms like Actor-Attention-Critic for Multi-Agent Reinforcement Learning (MAAC) or Deep Coordination Graphs (DCG) may achieve better performance.
 
