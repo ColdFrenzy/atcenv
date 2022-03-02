@@ -10,6 +10,7 @@ from ray.rllib import MultiAgentEnv
 from shapely.geometry import LineString, MultiPoint
 from shapely.ops import nearest_points
 
+from atcenv.common.wind_utils import abs_compass
 from atcenv.definitions import *
 
 WHITE = [255, 255, 255]
@@ -34,6 +35,8 @@ class FlightEnv(MultiAgentEnv):
                  min_distance: Optional[float] = 5.,
                  distance_init_buffer: Optional[float] = 5.,
                  max_agent_seen: Optional[int] = 3,
+                 wind_speed: Optional[float] = 300,
+                 wind_dir: Optional[str] = 'NW3',
                  **kwargs):
         """
         Initialises the environment
@@ -49,6 +52,8 @@ class FlightEnv(MultiAgentEnv):
         :param distance_init_buffer: distance factor used when initialising the enviroment to avoid flights close to conflict and close to the target
         :param kwargs: other arguments of your custom environment
         :param max_agent_seen: maximum number of closest agents to consider in the partial observation
+        :param wind_speed: wind speed (in kt)
+        :param wind_dir: cardinal direction of the wind 
         """
         self.num_flights = num_flights
         self.max_area = max_area * (u.nm ** 2)
@@ -60,6 +65,8 @@ class FlightEnv(MultiAgentEnv):
         self.distance_init_buffer = distance_init_buffer
         self.max_agent_seen = max_agent_seen
         self.dt = dt
+        self.wind_speed = wind_speed * u.kt
+        self.wind_dir = wind_dir
 
         # tolerance to consider that the target has been reached (in meters)
         self.tol = self.max_speed * 1.05 * self.dt
@@ -70,6 +77,7 @@ class FlightEnv(MultiAgentEnv):
         self.conflicts = set()  # set of flights that are in conflict
         self.done = {}  # set of flights that reached the target
         self.i = None
+        self.wind_components = self.wind_effect()
 
     def resolution(self, actions: Dict) -> None:
         """
@@ -177,6 +185,50 @@ class FlightEnv(MultiAgentEnv):
         return seen_agents
         ##########################################################
 
+    def wind_effect(self) -> Tuple[float, float]:
+        """
+        Wind X and Y compoents
+        :return: tuple containing wind speed
+        """
+
+        assert self.wind_dir in abs_compass, 'Invalid wind direction seleted! Select a cardinal direction from' + str([key for key,val in abs_compass.items()]) 
+
+        # Angle beween the North and the wind direction:
+        alpha = math.radians(abs_compass[self.wind_dir])
+        
+        # Wind speed coordinates w.r.t. North Wind (it corresponds also to the wind speed coordinates w.r.t. agent position)
+        # These correspond also to the wind speed absolute components w.r.t. agent position (since we are assuming wind origin right in (0,0):
+        wsx = self.wind_speed*math.sin(alpha)
+        wsy = self.wind_speed*math.cos(alpha)
+
+        return (wsx, wsy)
+
+    def track_prediction(self, flight: Flight, dt: Optional[float] = 120) -> Point:
+        """
+        Predicts the future actual (track) position after dt seconds (wind effect included)
+
+        :param: flight: current flight
+        :param: dt: prediction look-ahead time (in seconds)
+        :return: current flight actual (track) position (wind effected included)
+        """
+        dx, dy = flight.components
+        dx += self.wind_components[0]
+        dy += self.wind_components[1]
+        return Point(flight.position.x + dx*dt, flight.position.y + dy*dt)
+
+    def wind_direction(self, flight: Flight, dt: Optional[float] = 120) -> Point:
+        """
+        Wind direction w.r.t. the current flight
+
+        :param: flight: current flight
+        :param: dt: prediction look-ahead time (in seconds)
+        :return: wind applied on the current flight
+        """
+        dx = self.wind_components[0]
+        dy = self.wind_components[1]
+        return Point(flight.position.x + dx*dt, flight.position.y + dy*dt)
+
+
     def update_conflicts(self) -> None:
         """
         Updates the set of flights that are in conflict
@@ -229,7 +281,13 @@ class FlightEnv(MultiAgentEnv):
             if not self.done[i]:
                 # get current speed components
                 dx, dy = f.components
+                # get the current wind components
+                ws_x, ws_y = self.wind_components 
 
+                # add wind components (if any)
+                dx += ws_x
+                dy += ws_y
+                
                 # get current position
                 position = f.position
 
