@@ -4,23 +4,20 @@ Example
 from atcenv.common.utils import parse_args
 import random
 
-from atcenv.envs import FlightEnv
+from atcenv.envs import FlightEnv, RayWrapper
 
 random.seed(42)
 import time
 from tqdm import tqdm
 
 
-def random_action(flight_ids):
+def random_action(flight_ids, action_space):
 
     def inner():
 
         actions={}
         for f_id in flight_ids:
-            actions[f_id]=dict(
-                accel=random.random(),
-                track=random.random(),
-            )
+            actions[f_id]= action_space.sample()
         return actions
 
     return inner
@@ -32,10 +29,10 @@ if __name__ == "__main__":
     args = parse_args()
 
     # init environment
-    env = FlightEnv(**vars(args.env))
+    env = RayWrapper(vars(args.env))
     obs = env.reset()
 
-    random_policy=random_action(env.flights.keys())
+    random_policy=random_action(env.flights.keys(), env.action_space)
 
     # run episodes
     for e in tqdm(range(args.episodes)):
@@ -50,7 +47,7 @@ if __name__ == "__main__":
         # while not done:
         for i in range(100):
             # perform step with dummy action
-            rew, obs, done, info = env.step(random_policy())
+            obs, rew, done, info = env.step(random_policy())
             env.render()
             rews+=sum(rew.values())/len(rew.keys())
             #time.sleep(0.01)

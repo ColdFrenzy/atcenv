@@ -25,8 +25,17 @@ class RayWrapper(FlightEnv):
         )
 
         self.action_space = gym.spaces.Dict({
-            "track": gym.spaces.Box(low=0, high=1, shape=(1,)),
-            "accel": gym.spaces.Box(low=0, high=1, shape=(1,)),
+            "track": gym.spaces.Discrete(4),
+            # track :
+            # =0: align with target
+            # =1: keep current track
+            # =2: turn left
+            # =3: turn right
+            "accel": gym.spaces.Discrete(3),
+            # accel :
+            # =0: decrease
+            # =1: None
+            # =2: increase
         })
 
         self.done_ids = []

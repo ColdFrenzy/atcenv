@@ -1,3 +1,4 @@
+import os
 from os import listdir
 from os.path import isfile, join
 from typing import Dict, Optional
@@ -76,6 +77,7 @@ class MyCallbacks(DefaultCallbacks):
         episode.custom_metrics["actions_accel"] = float(np.asarray(env.logging_actions['accel']).mean())
         episode.custom_metrics["actions_track"] = float(np.asarray(env.logging_actions['track']).mean())
         episode.custom_metrics["non_zero_obs"] = float(np.asarray(env.logging_obs['non_zero']).mean())
+        episode.custom_metrics["reached_target"] = float(np.asarray(env.logging_env['reached_target']).mean())
         self.num_conflicts = 0
 
 
@@ -98,10 +100,12 @@ class MediaWandbLogger(WandbLoggerCallback):
 
         # get the most recent one and log it
         last = media[-1]
+        files.pop(files.index(last))
 
         result["evaluation"]['episode_media'] = {
-            "behaviour": wandb.Video(last)}
+            "behaviour": wandb.Video(last, format="mp4")}
 
         #todo: empty video dir
+        files=[os.unlink(x) for x in files]
 
         self._trial_queues[trial].put(result)

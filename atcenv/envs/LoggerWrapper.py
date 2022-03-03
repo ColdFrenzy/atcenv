@@ -15,6 +15,7 @@ class LoggerWrapper(RayWrapper):
 
         self.logging_actions = []
         self.logging_obs = {}
+        self.logging_env = {}
 
     def reset(self) -> Dict:
         self.logging_actions = dict(
@@ -24,6 +25,9 @@ class LoggerWrapper(RayWrapper):
         self.logging_obs = dict(
             non_zero=[]
 
+        )
+        self.logging_env=dict(
+            reached_target=[]
         )
         return super(LoggerWrapper, self).reset()
 
@@ -43,4 +47,9 @@ class LoggerWrapper(RayWrapper):
         non_zero_obs = sum([np.count_nonzero(x['agents_in_fov']) for x in obs.values()])
         self.logging_obs['non_zero'].append(non_zero_obs)
 
+        #leg on env stats
+        self.logging_env['reached_target'].append(len([v for k, v in done.items() if v and k!="__all__"]))
+
         return obs, rew, done, info
+
+

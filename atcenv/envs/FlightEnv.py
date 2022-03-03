@@ -37,8 +37,8 @@ class FlightEnv(MultiAgentEnv):
                  min_speed: Optional[float] = 400,
                  max_accel: Optional[float] = 10,
                  min_accel: Optional[float] = -10,
-                 max_bearing: Optional[float] = 15,
-                 min_bearing: Optional[float] = -15,
+                 max_bearing: Optional[float] = 5,
+                 min_bearing: Optional[float] = -5,
                  max_episode_len: Optional[int] = 300,
                  min_distance: Optional[float] = 5.,
                  distance_init_buffer: Optional[float] = 5.,
@@ -105,16 +105,39 @@ class FlightEnv(MultiAgentEnv):
         for f_id, action in actions.items():
             f = self.flights[f_id]
 
-            assert 0 <= action['accel'] <= 1, f"Acceleration is not in range [0,1], got 'action['accel']'"
-            assert 0 <= action['track'] <= 1, f"track is not in range [0,1], got 'action['track']'"
-            # denormalize acceleration and change airspeed clipping based on max/min speed allowed
-            accel = action['accel'] * (self.max_accel - self.min_accel) + self.min_accel
-            new_speed = np.clip(f.airspeed - accel, self.min_speed, self.max_speed)
-            f.airspeed = float(new_speed)
-            # denormalize track and assign
-            f.track = action['track'] * (self.max_bearing - self.min_bearing) + self.min_bearing
+            # choose track action
+            accel = 0
+            if action['accel'] == 0:
 
-        ##########################################################
+                # slower
+                accel = self.min_accel
+            elif action['accel'] == 1:
+                # no accel
+                pass
+
+            elif action['accel'] == 2:
+                # faster
+                accel = self.max_accel
+
+            # change airspeed clipping based on max/min speed allowed
+            new_speed = np.clip(f.airspeed + accel, self.min_speed, self.max_speed)
+            f.airspeed = float(new_speed)
+
+            # choose track action
+            if action['track'] == 0:
+                # align with target
+                f.track = f.bearing
+            elif action['track'] == 1:
+                # keep current track
+                pass
+            elif action['track'] == 2:
+                # turn left
+                f.track += self.max_bearing
+            elif action['track'] == 3:
+                # turn right
+                f.track += self.min_bearing
+            else:
+                raise ValueError(f"Track action must be in range [0,3], got '{action['track']}'")
 
     def reward(self) -> Dict:
         """
@@ -150,7 +173,7 @@ class FlightEnv(MultiAgentEnv):
             """
             Return the normalized distance between the flight and its target
             """
-            dist = f.position.distance(f.target)
+            dist = f.distance
             # fixme: is it correct for normalization?
             dist /= self.airspace.polygon.length
 
@@ -162,7 +185,7 @@ class FlightEnv(MultiAgentEnv):
             Check if the flight has reached the target
             """
 
-            dist = f.position.distance(f.target)
+            dist = f.distance
 
             if dist < self.tol:
                 return True
@@ -525,23 +548,26 @@ class FlightEnv(MultiAgentEnv):
 
             plan = LineString([f.position, f.target])
             self.viewer.draw_polyline(plan.coords, linewidth=1, color=color)
-            prediction = LineString([f.position, f.heading_prediction])
+            track_prediction = LineString([f.position, self.track_prediction(flight=f)])
             self.viewer.draw_polyline(
-                prediction.coords, linewidth=4, color=color)
+                track_prediction.coords, linewidth=4, color=color)
 
             self.viewer.add_onetime(circle)
 
             # add fovs
             fov_points = list(zip(*f.fov.exterior.coords.xy))[:-1]
             fov = rendering.make_polygon(fov_points, filled=True)
-            # fov = rendering.make_polygon([(fov_points[0].x, fov_points[0].y),
-            #                               (fov_points[1].x, fov_points[1].y),
-            #                               (fov_points[2].x, fov_points[2].y),
-            #                               ],
-            #                              filled=True)
-            # fov.set_color(*YELLOW)
-            fov._color.vec4 = (*YELLOW, 0.3)
+            fov._color.vec4 = (*YELLOW, 0.7)
             self.viewer.add_onetime(fov)
+
+            # add heading
+            heading = LineString([f.position, f.heading_prediction])
+            self.viewer.draw_polyline(heading.coords, linewidth=4, color=BLUE)
+
+            # add wind
+            wind_comp = self.wind_direction(flight=f)
+            wind = LineString([f.position, wind_comp])
+            self.viewer.draw_polyline(wind.coords, linewidth=4, color=GREEN)
 
         return self.viewer.render(mode == "rgb_array")
 
