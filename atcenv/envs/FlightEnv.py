@@ -5,7 +5,8 @@ from copy import copy
 from typing import Dict, List
 
 import numpy as np
-from gym.envs.classic_control import rendering
+import pygame
+from pygame import gfxdraw
 from ray.rllib import MultiAgentEnv
 from shapely.geometry import LineString, MultiPoint
 from shapely.ops import nearest_points
@@ -19,10 +20,26 @@ BLUE = [0, 0, 255]
 BLACK = [0, 0, 0]
 RED = [255, 0, 0]
 YELLOW = [255, 255, 0]
+ORANGE = [255, 165, 0]
 
 
 def min_max_normalizer(val, min_, max_):
     return (val - min_) / (max_ - min_)
+
+
+def normalizer(maxx, minx, maxy, miny, screen_w, screen_h):
+    def inner(x, y, use_int=False):
+        x = np.asarray(x)
+        y = np.asarray(y)
+
+        x = min_max_normalizer(x, maxx, minx) * screen_w
+        y = min_max_normalizer(y, maxy, miny) * screen_h
+        if use_int:
+            x = np.int64((np.floor(x)))
+            y = np.int64((np.floor(y)))
+        return x, y
+
+    return inner
 
 
 class FlightEnv(MultiAgentEnv):
@@ -83,7 +100,11 @@ class FlightEnv(MultiAgentEnv):
         # tolerance to consider that the target has been reached (in meters)
         self.tol = self.max_speed * 1.05 * self.dt
 
-        self.viewer = None
+        # Rendering
+        self.screen = None
+        self.surf = None
+        self.isopen = True
+
         self.airspace = None
         self.flights = {}  # list of flights
         self.conflicts = set()  # set of flights that are in conflict
@@ -504,30 +525,33 @@ class FlightEnv(MultiAgentEnv):
         :param mode: rendering mode
         :return:
         """
-        if self.viewer is None:
-            # initialise viewer
-            screen_width, screen_height = 600, 600
 
-            minx, miny, maxx, maxy = self.airspace.polygon.buffer(
-                10 * u.nm).bounds
-            self.viewer = rendering.Viewer(screen_width, screen_height)
-            self.viewer.set_bounds(minx, maxx, miny, maxy)
+        # initialise viewer
+        screen_width, screen_height = 1200, 1200
 
-            # fill background
-            background = rendering.make_polygon([(minx, miny),
-                                                 (minx, maxy),
-                                                 (maxx, maxy),
-                                                 (maxx, miny)],
-                                                filled=True)
-            background.set_color(*WHITE)
-            self.viewer.add_geom(background)
+        minx, miny, maxx, maxy = self.airspace.polygon.buffer(
+            10 * u.nm).bounds
 
-            # display airspace
-            sector = rendering.make_polygon(
-                self.airspace.polygon.boundary.coords, filled=False)
-            sector.set_linewidth(1)
-            sector.set_color(*BLACK)
-            self.viewer.add_geom(sector)
+        self.scaler = normalizer(maxx, minx, maxy, miny, screen_width, screen_height)
+
+        if self.screen is None:
+            pygame.init()
+            self.screen = pygame.display.set_mode((screen_width, screen_height))
+
+        self.surf = pygame.Surface((screen_width, screen_height))
+        self.surf.fill(WHITE)
+
+        # display airspace
+        xy = self.scaler(*self.airspace.polygon.boundary.coords.xy)
+        xy = np.stack(xy, axis=-1)
+        gfxdraw.aapolygon(self.surf, xy, BLACK)
+
+        # estimate radius
+        max_dist=max(maxx-minx,maxy-miny)
+        radius = self.min_distance / 2
+        radius /= max_dist
+        radius *= screen_width
+        radius = int(radius)
 
         # add current positions
         for i, f in self.flights.items():
@@ -539,43 +563,60 @@ class FlightEnv(MultiAgentEnv):
             else:
                 color = BLUE
 
-            circle = rendering.make_circle(radius=self.min_distance / 2.0,
-                                           res=10,
-                                           filled=False)
-            circle.add_attr(rendering.Transform(translation=(f.position.x,
-                                                             f.position.y)))
-            circle.set_color(*BLUE)
+            # add drone area
 
+            x, y = self.scaler(f.position.x, f.position.y, use_int=True)
+            gfxdraw.circle(self.surf, x, y, radius, BLUE)
+
+            # add plan
             plan = LineString([f.position, f.target])
-            self.viewer.draw_polyline(plan.coords, linewidth=1, color=color)
-            track_prediction = LineString([f.position, self.track_prediction(flight=f)])
-            self.viewer.draw_polyline(
-                track_prediction.coords, linewidth=4, color=color)
+            xy = self.scaler(*plan.coords.xy, use_int=False)
+            x, y = np.stack(xy, axis=-1)
+            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=color, width=1)
 
-            self.viewer.add_onetime(circle)
+            # add track prediction
+            track_prediction = LineString([f.position, self.track_prediction(flight=f)])
+            xy = self.scaler(*track_prediction.coords.xy)
+            x, y = np.stack(xy, axis=-1)
+            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=color, width=2)
 
             # add fovs
-            fov_points = list(zip(*f.fov.exterior.coords.xy))[:-1]
-            fov = rendering.make_polygon(fov_points, filled=True)
-            fov._color.vec4 = (*YELLOW, 0.7)
-            self.viewer.add_onetime(fov)
+            xy = self.scaler(*f.fov.exterior.coords.xy)
+            xy = np.stack(xy, axis=-1)
+            pygame.draw.polygon(self.surf, points=xy, color=ORANGE, width=0)
 
             # add heading
             heading = LineString([f.position, f.heading_prediction])
-            self.viewer.draw_polyline(heading.coords, linewidth=4, color=BLUE)
+            xy = self.scaler(*heading.coords.xy)
+            x, y = np.stack(xy, axis=-1)
+            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=color, width=2)
 
             # add wind
             wind_comp = self.wind_direction(flight=f)
             wind = LineString([f.position, wind_comp])
-            self.viewer.draw_polyline(wind.coords, linewidth=4, color=GREEN)
+            xy = self.scaler(*wind.coords.xy)
+            x, y = np.stack(xy, axis=-1)
+            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=color, width=2)
 
-        return self.viewer.render(mode == "rgb_array")
+        self.surf = pygame.transform.flip(self.surf, False, True)
+        self.screen.blit(self.surf, (0, 0))
+
+        if mode == "rgb_array":
+            return np.transpose(
+                np.asarray(
+                    pygame.surfarray.pixels3d(self.screen)
+                ), axes=(1, 0, 2)
+            )
+        else:
+            pygame.display.flip()
+
+            return self.isopen
 
     def close(self) -> None:
         """
         Closes the viewer
         :return:
         """
-        if self.viewer is not None:
-            self.viewer.close()
-            self.viewer = None
+        if self.screen is not None:
+            pygame.quit()
+            self.isopen = False

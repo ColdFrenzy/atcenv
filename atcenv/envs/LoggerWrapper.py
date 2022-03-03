@@ -1,3 +1,4 @@
+from collections import Counter
 from typing import Dict, Tuple
 
 import numpy as np
@@ -39,7 +40,7 @@ class LoggerWrapper(RayWrapper):
         track = [x["track"] for x in actions.values()]
 
         accel = np.asarray(accel).mean()
-        track = np.asarray(track).mean()
+        track = np.bincount(track).argmax()
         self.logging_actions['accel'].append(accel)
         self.logging_actions['track'].append(track)
 

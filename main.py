@@ -50,8 +50,8 @@ if __name__ == "__main__":
             obs, rew, done, info = env.step(random_policy())
             env.render()
             rews+=sum(rew.values())/len(rew.keys())
-            #time.sleep(0.01)
+            time.sleep(0.05)
 
         # close rendering
         print(rews/100)
-        env.close()
+    env.close()

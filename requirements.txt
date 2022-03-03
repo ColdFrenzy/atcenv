@@ -1,5 +1,6 @@
 jsonargparse==4.1.4
-gym==0.18.3
+gym==0.22.0
+pygame==2.1.2
 dataclasses==0.6
 shapely==1.7.1
 tqdm==4.62.3
