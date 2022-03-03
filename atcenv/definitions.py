@@ -68,13 +68,20 @@ class Flight:
     @property
     def bearing(self) -> float:
         """
-        Bearing from current position to target
+        Bearing from current position to target (clockwise angle between 
+        current position and target position starting from the y axis)
         :return:
         """
+        # relative distance between target and flight
+        # w.r.t the flight's frame
         dx = self.target.x - self.position.x
         dy = self.target.y - self.position.y
-        # bussola
+        # compass=bussola
+        # north-clockwise convention (x and y swapped):
+        # https://en.wikipedia.org/wiki/Atan2#East-counterclockwise,_north-clockwise_and_south-clockwise_conventions,_etc.
         compass = math.atan2(dx, dy)
+        # map atan between [0,2pi]
+        # https://stackoverflow.com/questions/1311049/how-to-map-atan2-to-degrees-0-360
         return (compass + u.circle) % u.circle
 
     @property
@@ -93,8 +100,9 @@ class Flight:
         Returns the field of view of the given flight
         :return: polygon representing the agent's fov
         """
+        # TODO : fov should point to the current direction of the flight not
+        # the direction of its target
         fov_vertices = []
-        # center = [self.flights[flight_id].position]
         center_x, center_y = self.position.x, self.position.y
         fov_vertices.append(Point(center_x, center_y))
         bearing = self.bearing
@@ -107,8 +115,7 @@ class Flight:
                                 (math.cos((math.pi-(bearing+math.pi/2)) + angle/2)))
         point_2_y = center_y + (depth *
                                 (math.sin((math.pi-(bearing+math.pi/2)) + angle/2)))
-        # point_2 = depth*((math.cos(self.flights[flight_id].bearing + angle/2))**2 + (
-        #     math.sin(self.flights[flight_id].bearing + angle/2))**2)
+
         fov_vertices.append(Point(point_2_x, point_2_y))
 
         ##########################################################
@@ -201,7 +208,6 @@ class Flight:
 
         # random position
         position = random_point_in_polygon(airspace.polygon)
-
 
         # random target
         boundary = airspace.polygon.boundary
