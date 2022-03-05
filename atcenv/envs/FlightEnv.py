@@ -54,8 +54,8 @@ class FlightEnv(MultiAgentEnv):
                  min_speed: Optional[float] = 400,
                  max_accel: Optional[float] = 10,
                  min_accel: Optional[float] = -10,
-                 max_bearing: Optional[float] = 5,
-                 min_bearing: Optional[float] = -5,
+                 max_heading_angle: Optional[float] = 5,
+                 min_heading_angle: Optional[float] = -5,
                  max_episode_len: Optional[int] = 300,
                  min_distance: Optional[float] = 5.,
                  distance_init_buffer: Optional[float] = 5.,
@@ -87,8 +87,8 @@ class FlightEnv(MultiAgentEnv):
         self.min_speed = min_speed * u.kt
         self.max_accel = max_accel * u.kt
         self.min_accel = min_accel * u.kt
-        self.max_bearing = math.radians(max_bearing)
-        self.min_bearing = math.radians(min_bearing)
+        self.max_heading_angle = math.radians(max_heading_angle)
+        self.min_heading_angle = math.radians(min_heading_angle)
         self.min_distance = min_distance * u.nm
         self.max_episode_len = max_episode_len
         self.distance_init_buffer = distance_init_buffer
@@ -104,6 +104,7 @@ class FlightEnv(MultiAgentEnv):
         self.screen = None
         self.surf = None
         self.isopen = True
+        self.screen_size=1200
 
         self.airspace = None
         self.flights = {}  # list of flights
@@ -111,6 +112,9 @@ class FlightEnv(MultiAgentEnv):
         self.done = {}  # set of flights that reached the target
         self.i = None
         self.wind_components = self.wind_effect()
+
+        #
+        self.max_dist = None
 
     def resolution(self, actions: Dict) -> None:
         """
@@ -129,7 +133,6 @@ class FlightEnv(MultiAgentEnv):
             # choose track action
             accel = 0
             if action['accel'] == 0:
-
                 # slower
                 accel = self.min_accel
             elif action['accel'] == 1:
@@ -153,10 +156,10 @@ class FlightEnv(MultiAgentEnv):
                 pass
             elif action['track'] == 2:
                 # turn left
-                f.track += self.max_bearing
+                f.track += self.max_heading_angle
             elif action['track'] == 3:
                 # turn right
-                f.track += self.min_bearing
+                f.track += self.min_heading_angle
             else:
                 raise ValueError(f"Track action must be in range [0,3], got '{action['track']}'")
 
@@ -195,10 +198,9 @@ class FlightEnv(MultiAgentEnv):
             Return the normalized distance between the flight and its target
             """
             dist = f.distance
-            # fixme: is it correct for normalization?
-            dist /= self.airspace.polygon.length
+            dist /= self.max_dist
 
-            assert 0 <= dist <= 1, f"Distance in not normalized, got 'dist'"
+            assert 0 <= dist <= 1, f"Distance in not normalized, got '{dist}'"
             return dist
 
         def target_reached(f) -> bool:
@@ -227,7 +229,6 @@ class FlightEnv(MultiAgentEnv):
             rews[c] += collision_weight
 
         return rews
-        ##########################################################
 
     def observation(self) -> Dict:
         """
@@ -264,8 +265,8 @@ class FlightEnv(MultiAgentEnv):
                     for j, seen_agent_idx in enumerate(seen_agents_indices):
                         x_dist = self.flights[seen_agent_idx].position.x - origin.x
                         y_dist = self.flights[seen_agent_idx].position.y - origin.y
-                        # fixme: check if right
-                        angles[j] = min_max_normalizer(np.arctan2(x_dist, y_dist), -math.pi, math.pi)
+                        angle = (np.arctan2(y_dist, x_dist) + u.circle) % u.circle
+                        angles[j] = min_max_normalizer(angle, 0, 2 * math.pi)
                         dists[j] = math.dist([self.flights[seen_agent_idx].position.x,
                                               self.flights[seen_agent_idx].position.y],
                                              [origin.x, origin.y]) / f.fov_depth
@@ -279,8 +280,8 @@ class FlightEnv(MultiAgentEnv):
                         nearest_agent = nearest_points(origin, seen_agents)[1]
                         x_dist = nearest_agent.x - origin.x
                         y_dist = nearest_agent.y - origin.y
-                        # fixme: check if right
-                        angles[j] = min_max_normalizer(np.arctan2(x_dist, y_dist), -math.pi, math.pi)
+                        angle = (np.arctan2(y_dist, x_dist) + u.circle) % u.circle
+                        angles[j] = min_max_normalizer(angle, 0, 2 * math.pi)
                         dists[j] = math.dist([nearest_agent.x,
                                               nearest_agent.y],
                                              [origin.x, origin.y]) / f.fov_depth
@@ -486,6 +487,11 @@ class FlightEnv(MultiAgentEnv):
         """
         # create random airspace
         self.airspace = Airspace.random(self.min_area, self.max_area)
+        minx, miny, maxx, maxy = self.airspace.polygon.buffer(
+            10 * u.nm).bounds
+
+        self.max_dist = LineString([(minx, miny), (maxx, maxy)]).length
+        self.scaler = normalizer(maxx, minx, maxy, miny, self.screen_size, self.screen_size)
 
         # create random flights
         self.flights = {}
@@ -519,26 +525,21 @@ class FlightEnv(MultiAgentEnv):
         # return initial observation
         return self.observation()
 
-    def render(self, mode=None) -> None:
+    def render(self, mode=None) -> Optional[np.ndarray]:
         """
         Renders the environment
         :param mode: rendering mode
         :return:
         """
 
-        # initialise viewer
-        screen_width, screen_height = 1200, 1200
-
-        minx, miny, maxx, maxy = self.airspace.polygon.buffer(
-            10 * u.nm).bounds
-
-        self.scaler = normalizer(maxx, minx, maxy, miny, screen_width, screen_height)
-
+        # initialise screen
         if self.screen is None:
             pygame.init()
-            self.screen = pygame.display.set_mode((screen_width, screen_height))
+            if mode == "human":
+                self.screen = pygame.display.set_mode((self.screen_size, self.screen_size))
 
-        self.surf = pygame.Surface((screen_width, screen_height))
+        #init empty background
+        self.surf = pygame.Surface((self.screen_size, self.screen_size))
         self.surf.fill(WHITE)
 
         # display airspace
@@ -547,10 +548,9 @@ class FlightEnv(MultiAgentEnv):
         gfxdraw.aapolygon(self.surf, xy, BLACK)
 
         # estimate radius
-        max_dist=max(maxx-minx,maxy-miny)
         radius = self.min_distance / 2
-        radius /= max_dist
-        radius *= screen_width
+        radius /= self.max_dist
+        radius *= self.screen_size
         radius = int(radius)
 
         # add current positions
@@ -564,13 +564,12 @@ class FlightEnv(MultiAgentEnv):
                 color = BLUE
 
             # add drone area
-
             x, y = self.scaler(f.position.x, f.position.y, use_int=True)
             gfxdraw.circle(self.surf, x, y, radius, BLUE)
 
             # add plan
             plan = LineString([f.position, f.target])
-            xy = self.scaler(*plan.coords.xy, use_int=False)
+            xy = self.scaler(*plan.coords.xy)
             x, y = np.stack(xy, axis=-1)
             pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=color, width=1)
 
@@ -596,21 +595,23 @@ class FlightEnv(MultiAgentEnv):
             wind = LineString([f.position, wind_comp])
             xy = self.scaler(*wind.coords.xy)
             x, y = np.stack(xy, axis=-1)
-            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=color, width=2)
+            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=GREEN, width=2)
+
 
         self.surf = pygame.transform.flip(self.surf, False, True)
-        self.screen.blit(self.surf, (0, 0))
 
-        if mode == "rgb_array":
-            return np.transpose(
-                np.asarray(
-                    pygame.surfarray.pixels3d(self.screen)
-                ), axes=(1, 0, 2)
-            )
-        else:
+        if mode == "human":
+            self.screen.blit(self.surf, (0, 0))
             pygame.display.flip()
 
-            return self.isopen
+        if mode == "rgb_array":
+            ret = np.transpose(
+                np.asarray(
+                    pygame.surfarray.pixels3d(self.surf)
+                ), axes=(1, 0, 2)
+            )
+            return ret
+
 
     def close(self) -> None:
         """

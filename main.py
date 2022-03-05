@@ -48,7 +48,7 @@ if __name__ == "__main__":
         for i in range(100):
             # perform step with dummy action
             obs, rew, done, info = env.step(random_policy())
-            env.render()
+            env.render(mode="human")
             rews+=sum(rew.values())/len(rew.keys())
             time.sleep(0.05)
 

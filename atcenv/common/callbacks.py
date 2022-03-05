@@ -1,8 +1,10 @@
 import os
+import pickle
 from os import listdir
 from os.path import isfile, join
 from typing import Dict, Optional
 
+import imageio
 import numpy as np
 import wandb
 from ray.rllib import BaseEnv, Policy
@@ -81,6 +83,8 @@ class MyCallbacks(DefaultCallbacks):
         self.num_conflicts = 0
 
 
+
+
 class MediaWandbLogger(WandbLoggerCallback):
 
     def __init__(self, vide_dir, **kwargs):
@@ -92,19 +96,19 @@ class MediaWandbLogger(WandbLoggerCallback):
             self.log_trial_start(trial)
 
         result = _clean_log(result)
-
-        # get all the media files in the dir
+        #
+        # # get all the media files in the dir and unlink
         files = [join(self.video_dir, f) for f in listdir(self.video_dir) if isfile(join(self.video_dir, f))]
-        media = [x for x in files if "mp4" in x]
-        media = sorted(media)
+
+        media=[x for x in files if "mp4" in x]
+        media=sorted(media)[-2]
+        files.pop(files.index(media))
 
         # get the most recent one and log it
-        last = media[-1]
-        files.pop(files.index(last))
         result["evaluation"]['episode_media'] = {
-            "behaviour": wandb.Video(last, format="mp4")}
+            "behaviour": wandb.Video(media, format="mp4")}
 
-        #empty video dir
+        # empty video dir
         [os.unlink(x) for x in files]
 
         self._trial_queues[trial].put(result)

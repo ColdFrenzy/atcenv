@@ -49,7 +49,7 @@ def model_configs(args):
 
             # == LSTM ==
             # Whether to wrap the model with an LSTM.
-            "use_lstm": False,
+            "use_lstm": True,
             # Max seq len for training the LSTM, defaults to 20.
             "max_seq_len": 20,
             # Size of the LSTM cell.
@@ -117,6 +117,8 @@ def model_configs(args):
 
 
 def ppo_configs(args):
+
+
     configs = {
         # Should use a critic as a baseline (otherwise don't use value baseline;
         # required for using GAE).
@@ -129,13 +131,13 @@ def ppo_configs(args):
         # Initial coefficient for KL divergence.
         "kl_coeff": 0.2,
         # Size of batches collected from each worker.
-        "rollout_fragment_length": 200,
+        "rollout_fragment_length": 20 if args.debug else 200,
         # Number of timesteps collected for each SGD round. This defines the size
         # of each SGD epoch.
-        "train_batch_size": 4000,
+        "train_batch_size": 400 if args.debug else 4000,
         # Total SGD batch size across all devices for SGD. This defines the
         # minibatch size within each epoch.
-        "sgd_minibatch_size": 256,
+        "sgd_minibatch_size": 25 if args.debug else 256,
         # Whether to shuffle sequences in the batch when training (recommended).
         "shuffle_sequences": True,
         # Number of SGD iterations in each outer loop (i.e., number of epochs to
@@ -208,7 +210,7 @@ def eval_configs(args):
             # Render the env while evaluating.
             # Note that this will always only render the 1st RolloutWorker's
             # env and only the 1st sub-env in a vectorized env.
-            "render_env": False,
+            "render_env": True,
         },
     }
 

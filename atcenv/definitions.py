@@ -220,7 +220,7 @@ class Flight:
 
         # random speed
         airspeed = random.uniform(min_speed, max_speed)
-        fov_depth = 5000
+        fov_depth = 10000
         fov_angle = math.pi / 2
 
         return cls(position, target, airspeed, flight_id, fov_depth=fov_depth, fov_angle=fov_angle)
