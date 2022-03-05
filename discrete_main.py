@@ -37,9 +37,16 @@ if __name__ == "__main__":
         # execute one episode
         # while not done:
         for i in range(50):
+            # the action space of a single agent is a tuple (int,int) where in is
+            # a number between {0,1,2,3}
+            random_actions = []
+            for i in range(env.num_flights):
+                random_actions.append(
+                    (random.randint(0, 3), random.randint(0, 3)))
+
             # perform step with dummy action
-            rew, obs, done, info = env.step([])
-            print(obs[4])
+            rew, obs, done, info = env.step(random_actions)
+            # print(obs[4])
             env.render()
             time.sleep(0.05)
 

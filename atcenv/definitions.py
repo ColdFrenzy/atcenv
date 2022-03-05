@@ -105,7 +105,7 @@ class Flight:
         fov_vertices = []
         center_x, center_y = self.position.x, self.position.y
         fov_vertices.append(Point(center_x, center_y))
-        bearing = self.bearing
+        bearing = self.track
         point_1_x = center_x + (depth *
                                 (math.cos((math.pi-(bearing+math.pi/2)) - angle/2)))
         point_1_y = center_y + (depth *

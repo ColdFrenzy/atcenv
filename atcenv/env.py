@@ -105,6 +105,9 @@ class Environment(gym.Env):
         observations = []
         for i, flight in enumerate(self.flights):
             obs = np.zeros(self.max_agent_seen * 2, dtype=np.float32)
+            if i in self.done:
+                observations.append(obs)
+                continue
             origin = flight.position
             seen_agents_indices = self.flights_in_fov(i)
             if len(seen_agents_indices) != 0:
@@ -112,7 +115,7 @@ class Environment(gym.Env):
                 if len(seen_agents_indices) <= self.max_agent_seen:
                     for j, seen_agent_idx in enumerate(seen_agents_indices):
                         obs[j * 2:j * 2 + 2] = self.flights[seen_agent_idx].position.x - origin.x, \
-                                               self.flights[seen_agent_idx].position.y - origin.y
+                            self.flights[seen_agent_idx].position.y - origin.y
                 else:
                     # set of points of all the agents in the fov
                     seen_agents = MultiPoint(
@@ -228,7 +231,7 @@ class Environment(gym.Env):
         # (1) all flights reached the target
         # (2) the maximum episode length is reached
         done = (self.i == self.max_episode_len) or (
-                len(self.done) == self.num_flights)
+            len(self.done) == self.num_flights)
 
         return rew, obs, done, {}
 

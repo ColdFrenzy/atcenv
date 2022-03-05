@@ -7,7 +7,7 @@ from typing import Dict, Optional
 import gym
 import math
 import numpy as np
-from typing import Dict, List
+from typing import Dict, List, Tuple
 # from atcenv.definitions import *
 from gym.envs.classic_control import rendering
 from shapely.geometry import LineString, MultiPoint, Point, Polygon
@@ -66,10 +66,105 @@ class DiscreteEnvironment(Environment):
             max_agent_seen,
             **kwargs
         )
+        # set of flights that reached the target in the previous timestep
+        self.prev_step_done = set()
+        # define the action space
+        self.yaw_angles = [-5, 0, 5]
+        # 5 kt are ~ 10 km/h
+        self.accelleration = [-5, 0, 5]
+        self.num_actions = len(self.yaw_angles) + len(self.accelleration)
 
-    def observation(self, angular_resolution=3, depth_resolution=3) -> List:
+    def resolution(self, actions: List) -> None:
+        """
+        Applies the resolution actions
+        If your policy can modify the speed, then remember to clip the speed of each flight
+        In the range [min_speed, max_speed].
+        A single action is a tuple of 2 integer in {0,1,2} the first integer
+        represents the angular variation in self.yaw_angle and the second
+        represents the linear velocity variation in self.accellaration
+        :param action: list of resolution actions assigned to each flight
+        :return:
+        """
+        for i, action in enumerate(actions):
+            if i in self.done:
+                continue
+            self.flights[i].track += math.radians(action[0])
+            if self.min_speed <= self.flights[i].airspeed + action[1] <= self.max_speed:
+                self.flights[i].airspeed += action[1]
+
+        # RDC: here you should implement your resolution actions
+        ##########################################################
+        return None
+        ##########################################################
+
+    def step(self, action: List) -> Tuple[List, List, bool, Dict]:
+        """
+        Performs a simulation step
+
+        :param action: list of resolution actions assigned to each flight
+        :return: observation, reward, done status and other information
+        """
+        # apply resolution actions
+        self.resolution(action)
+
+        # update positions
+        self.update_positions()
+
+        # update done set
+        self.update_done()
+
+        # update conflict set
+        self.update_conflicts()
+
+        # compute reward
+        rew = self.reward()
+
+        # compute observation
+        obs = self.observation()
+
+        # increase steps counter
+        self.i += 1
+
+        # check termination status
+        # termination happens when
+        # (1) all flights reached the target
+        # (2) the maximum episode length is reached
+        done = (self.i == self.max_episode_len) or (
+            len(self.done) == self.num_flights)
+
+        return rew, obs, done, {}
+
+    def reward(self) -> List:
+        """
+        Returns the reward assigned to each agent. At the moment agents receive
+        +1 if they reach the target and -1 if there is a conflict
+        :return: reward assigned to each agent
+        """
+        total_rewards = []
+        for i, flight in enumerate(self.flights):
+            if i in self.done:
+                total_rewards.append(0.0)
+                continue
+            # TODO: use an external parameter, not -1 and +1
+            conflict_reward = -1.0 if i in self.conflicts else 0.0
+            target_reached_reward = + \
+                1.0 if (i in self.done and i not in self.prev_step_done) else 0.0
+            total_rewards.append(conflict_reward+target_reached_reward)
+        # update the prev_step_done
+        self.prev_step_done.update(self.done)
+
+        # RDC: here you should implement your reward function
+        ##########################################################
+        return total_rewards
+        ##########################################################
+
+    def observation(self, angular_resolution=2, depth_resolution=2) -> List:
         """return discretized observation
-
+        a single discrete observation is a np.array of dimension
+        angular_resolution*depth_resolution and each element of the array may
+        have a value between [0, self.max_agent_seen]. Therefore, the state
+        space has dimension:
+            (self.max_agent_seen+1)^(angular_resolution*depth_resolution)
         :return all_obs:
         """
         all_obs = super(DiscreteEnvironment, self).observation()
