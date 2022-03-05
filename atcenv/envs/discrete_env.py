@@ -88,9 +88,9 @@ class DiscreteEnvironment(Environment):
         for i, action in enumerate(actions):
             if i in self.done:
                 continue
-            self.flights[i].track += math.radians(action[0])
-            if self.min_speed <= self.flights[i].airspeed + action[1] <= self.max_speed:
-                self.flights[i].airspeed += action[1]
+            self.flights[i].track += math.radians(self.yaw_angles[action[0]])
+            if self.min_speed <= self.flights[i].airspeed + self.accelleration[action[1]] <= self.max_speed:
+                self.flights[i].airspeed += self.accelleration[action[1]]
 
         # RDC: here you should implement your resolution actions
         ##########################################################
