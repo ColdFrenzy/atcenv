@@ -43,16 +43,13 @@ class LoggerWrapper(RayWrapper):
         track = [x["track"] for x in actions.values()]
 
         accel = np.asarray(accel).mean()
-        track = np.bincount(track).argmax()
+        #track = np.bincount(track).argmax()
         self.logging_actions['accel'].append(accel)
         self.logging_actions['track'].append(track)
 
         # log non zero observations
         non_zero_obs = sum([np.count_nonzero(x['agents_in_fov']) for x in obs.values()])
         self.logging_obs['non_zero'].append(non_zero_obs)
-
-        # leg on env stats
-        self.logging_env['reached_target'].append(len([v for k, v in done.items() if v and k != "__all__"]))
 
         return obs, rew, done, info
 

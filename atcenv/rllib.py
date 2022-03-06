@@ -19,6 +19,7 @@ if __name__ == '__main__':
     ray.init(local_mode=True if args.debug else False,
              num_gpus=0 if args.debug else 1,
              num_cpus=0 if args.debug else 6,
+             log_to_driver=False,
              )
     env_cls = get_env_cls()
 
@@ -57,7 +58,8 @@ if __name__ == '__main__':
         vide_dir=e_configs['evaluation_config']['record_env'],
         project="atcenv",
         monitor_gym=True,
-        mode="disabled" if args.debug else "online"
+        mode="offline" if args.debug else "online",
+        resume=True,
     )
 
 
@@ -72,4 +74,10 @@ if __name__ == '__main__':
         config=config,
         name="ppo_trainer",
         callbacks=callbakcs,
+        keep_checkpoints_num=5,
+
+        # a very useful trick! this will resume from the last run specified by
+        # sync_config (if one exists), otherwise it will start a new tuning run
+        resume=False,
+
     )

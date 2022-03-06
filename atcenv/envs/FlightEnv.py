@@ -220,7 +220,7 @@ class FlightEnv(MultiAgentEnv):
         rews = {k: 0 for k in self.flights.keys()}
 
         for f_id, flight in self.flights.items():
-            rews[f_id] += target_dist(flight) * dist_weight
+            #rews[f_id] += target_dist(flight) * dist_weight
             if target_reached(flight):
                 rews[f_id] += target_reached_w
 
@@ -563,6 +563,11 @@ class FlightEnv(MultiAgentEnv):
             else:
                 color = BLUE
 
+            # add fovs first to avoid drawing on other elements
+            xy = self.scaler(*f.fov.exterior.coords.xy)
+            xy = np.stack(xy, axis=-1)
+            pygame.draw.polygon(self.surf, points=xy, color=ORANGE, width=0)
+
             # add drone area
             x, y = self.scaler(f.position.x, f.position.y, use_int=True)
             gfxdraw.circle(self.surf, x, y, radius, BLUE)
@@ -578,11 +583,6 @@ class FlightEnv(MultiAgentEnv):
             xy = self.scaler(*track_prediction.coords.xy)
             x, y = np.stack(xy, axis=-1)
             pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=color, width=2)
-
-            # add fovs
-            xy = self.scaler(*f.fov.exterior.coords.xy)
-            xy = np.stack(xy, axis=-1)
-            pygame.draw.polygon(self.surf, points=xy, color=ORANGE, width=0)
 
             # add heading
             heading = LineString([f.position, f.heading_prediction])

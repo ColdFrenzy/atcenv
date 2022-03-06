@@ -77,9 +77,15 @@ class MyCallbacks(DefaultCallbacks):
         episode.custom_metrics["num_conflicts"] = self.num_conflicts / 2
         episode.custom_metrics["speed_diff"] = float(np.asarray(speed_diff).mean())
         episode.custom_metrics["actions_accel"] = np.asarray(env.logging_actions['accel']).mean()
-        episode.custom_metrics["actions_track"] = float(np.bincount(env.logging_actions['track']).argmax())
+        #episode.custom_metrics["actions_track"] = float(np.bincount(env.logging_actions['track']).argmax())
         episode.custom_metrics["non_zero_obs"] = float(np.asarray(env.logging_obs['non_zero']).mean())
-        episode.custom_metrics["reached_target"] = float(np.asarray(env.logging_env['reached_target']).mean())
+        episode.hist_data["actions_track"] = env.logging_actions['track']
+
+        # get all the agents that reached the target
+        done_ids = [v for k, v in env.done.items() if v and k != "__all__"]
+        done_ids = len(done_ids) / len(env.flights)
+        episode.custom_metrics["reached_target"] = done_ids
+
         self.num_conflicts = 0
 
 
@@ -96,7 +102,11 @@ class MediaWandbLogger(WandbLoggerCallback):
             self.log_trial_start(trial)
 
         result = _clean_log(result)
-        #
+
+        ##############################
+        #   Medias
+        ###############################
+
         # # get all the media files in the dir and unlink
         files = [join(self.video_dir, f) for f in listdir(self.video_dir) if isfile(join(self.video_dir, f))]
 
@@ -110,5 +120,14 @@ class MediaWandbLogger(WandbLoggerCallback):
 
         # empty video dir
         [os.unlink(x) for x in files]
+
+
+        ##############################
+        #   histograms
+        ###############################
+
+        action_track=result['hist_stats']['actions_track']
+        action_track= [x for sub in action_track for x in sub]
+        result['hist_stats']['actions_track']=wandb.Histogram(action_track)
 
         self._trial_queues[trial].put(result)

@@ -6,11 +6,11 @@ def model_configs(args):
             # FullyConnectedNetwork (tf and torch): rllib.models.tf|torch.fcnet.py
             # These are used if no custom model is specified and the input space is 1D.
             # Number of hidden layers to be used.
-            "fcnet_hiddens": [256, 256],
+            "fcnet_hiddens": [512, 1024, 512 ],
             # Activation function descriptor.
             # Supported values are: "tanh", "relu", "swish" (or "silu"),
             # "linear" (or None).
-            "fcnet_activation": "tanh",
+            "fcnet_activation": "relu",
 
             # VisionNetwork (tf and torch): rllib.models.tf|torch.visionnet.py
             # These are used if no custom model is specified and the input space is 2D.
@@ -192,7 +192,7 @@ def eval_configs(args):
         # Evaluate once per training iteration.
         "evaluation_interval": 1,
         # Run evaluation on (at least) two episodes
-        "evaluation_duration": 2,
+        "evaluation_duration": 1,
         # ... using one evaluation worker (setting this to 0 will cause
         # evaluation to run on the local evaluation worker, blocking
         # training until evaluation is done).
@@ -210,7 +210,7 @@ def eval_configs(args):
             # Render the env while evaluating.
             # Note that this will always only render the 1st RolloutWorker's
             # env and only the 1st sub-env in a vectorized env.
-            "render_env": True,
+            "render_env": False,
         },
     }
 
