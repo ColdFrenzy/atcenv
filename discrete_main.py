@@ -2,6 +2,19 @@
 Example
 """
 
+SHOW_EVERY = 50
+LEARNING_RATE = 0.01  # alpha
+DISCOUNT = 0.99  # gamma
+EPSILON = 0.99
+EPSILON_DECR = False
+EPSILON_DECREMENT = 0.999
+EPSILON_MIN = 0.01
+EPSILON_MIN2 = 0.1
+max_value_for_Rmax = 100
+alpha = 0.85
+gamma = 0.95
+
+import numpy as np
 if __name__ == "__main__":
     import random
     random.seed(42)
@@ -26,10 +39,48 @@ if __name__ == "__main__":
     # init environment
     env = DiscreteEnvironment(**vars(args.env))
 
+    #init q_tables
+    uavs_q_tables = env.q_table()
+
+
+    def choose_action_(state):
+        action = 0
+        if np.random.uniform(0, 1) < EPSILON:
+            action = env.action_space.sample()
+        else:
+            action = np.argmax(uavs_q_tables[state, :])
+        return action
+
+    def choose_action(state):
+        random_actions = []
+        for i in range(env.num_flights):
+            if np.random.uniform(0, 1) < EPSILON:
+                random_actions.append(
+                    (random.randint(0, 2), random.randint(0, 2)))
+            else:
+                random_actions.append(
+                    (np.argmax(uavs_q_tables[i][state, :]), np.argmax(uavs_q_tables[i][state, :])))
+        return random_actions
+
+
+    # Function to learn the Q-value
+    def update(state, state2, reward, action, action2):
+        for i in range(env.num_flights):
+            predict = uavs_q_tables[i][state, action]
+            target = reward[i] + gamma * uavs_q_tables[i][state2, action2]
+            uavs_q_tables[i][state, action] = uavs_q_tables[i][state, action] + alpha * (target - predict)
+
     # run episodes
     for e in tqdm(range(args.episodes)):
         # reset environment
-        obs = env.reset()
+
+        #obs = env.reset()
+        state1 = env.reset()
+        action1 = choose_action(state1)
+        print("action1", action1)
+        print("state1", state1)
+        breakpoint()
+
 
         # set done status to false
         done = False
@@ -39,15 +90,50 @@ if __name__ == "__main__":
             # for i in range(50):
             # the action space of a single agent is a tuple (int,int) where in is
             # a number between {0,1,2,}
-            random_actions = []
-            for i in range(env.num_flights):
+            # random_actions = []
+            '''for i in range(env.num_flights):
                 random_actions.append(
-                    (random.randint(0, 2), random.randint(0, 2)))
+                (random.randint(0, 2), random.randint(0, 2)))'''
+            print("action1", action1)
+
+            env.render()
 
             # perform step with dummy action
-            rew, obs, done, info = env.step(random_actions)
+            rew, state1, done, info = env.step(action1)
+            print("action1", action1)
+            print("rew", rew)
+            print("obs", state1)
+            print("done", done)
+            print("info", info)
+            #breakpoint()
+            state2 = state1
+            # Choosing the next action
+            action2 = choose_action(state2)
+            print("action2", action2)
+
+            # Learning the Q-value
+            update(state1, state2, rew, action1, action2)
+
+            state1 = state2
+            action1 = action2
+
+
             # print(obs[4])
-            env.render()
+            max_future_q = []
+            current_q = []
+            new_q = []
+            '''for UAV in range(env.num_flights):
+                max_future_q.append(np.max(uavs_q_tables[UAV][state2]))
+                current_q.append(uavs_q_tables[UAV][state1][action1])
+                new_q.append((1 - LEARNING_RATE) * current_q[UAV] + LEARNING_RATE * (rew[UAV] + DISCOUNT * max_future_q[UAV]))
+
+            for UAV in range(env.num_flights):
+                max_future_q.append(np.max(uavs_q_tables[UAV][obs]))
+                current_q.append(uavs_q_tables[UAV][obs][random_actions])
+                new_q.append((1 - LEARNING_RATE) * current_q + LEARNING_RATE * (rew + DISCOUNT * max_future_q))
+                
+'''
+
             time.sleep(0.05)
 
         # close rendering

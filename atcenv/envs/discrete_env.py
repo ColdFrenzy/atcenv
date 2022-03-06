@@ -73,7 +73,7 @@ class DiscreteEnvironment(Environment):
         # 5 kt are ~ 10 km/h
         self.accelleration = [-5, 0, 5]
         self.num_actions = len(self.yaw_angles) + len(self.accelleration)
-
+        #(env.max_agent_seen + 1) ^ (angular_resolution * depth_resolution)
     def resolution(self, actions: List) -> None:
         """
         Applies the resolution actions
@@ -191,6 +191,28 @@ class DiscreteEnvironment(Environment):
                 discretized_state.append(discretized_obs)
 
         return discretized_state
+
+    def q_table(self, angular_resolution = 2, depth_resolution = 2 ):
+        state_space_size = (self.max_agent_seen + 1) ** (angular_resolution * depth_resolution)
+
+        print("dim_space", state_space_size)
+        #num_box = tuple((env.observation_space.high + np.ones(env.observation_space.shape)).astype(int))
+        #q_table = np.zeros(num_box + (env.action_space.n,))
+        q_table = np.zeros(shape=(state_space_size, self.num_actions), dtype='float32')
+
+        print("q_table", len(q_table), q_table)
+        rows = len(q_table)
+        columns = len(q_table[0])
+        print("righe: ", rows, "colonne: ", columns)
+        print("Q-TABLES INITIALIZATION . . .")
+        N_UAVS = self.num_flights
+        print("N_UAVS", N_UAVS)
+        uavs_q_tables = [None for uav in range(N_UAVS)]
+        explored_states_q_tables = [None for uav in range(N_UAVS)]
+        for uav in range(N_UAVS):
+            uavs_q_tables[uav] = q_table
+        print("uavs_q_tables", uavs_q_tables)
+        return uavs_q_tables
 
     def discretize_fov(self, flight_id: int, angular_resolution: int, depth_resolution: int) -> List[Polygon]:
         """return discretized representation of the FoV.
