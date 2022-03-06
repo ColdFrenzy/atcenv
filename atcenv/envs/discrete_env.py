@@ -12,7 +12,7 @@ from typing import Dict, List, Tuple
 from gym.envs.classic_control import rendering
 from shapely.geometry import LineString, MultiPoint, Point, Polygon
 from shapely.ops import nearest_points, split
-
+import itertools as it
 
 WHITE = [255, 255, 255]
 GREEN = [0, 255, 0]
@@ -72,8 +72,14 @@ class DiscreteEnvironment(Environment):
         self.yaw_angles = [-5, 0, 5]
         # 5 kt are ~ 10 km/h
         self.accelleration = [-5, 0, 5]
+        self.actions = [self.yaw_angles, self.accelleration]
         self.num_actions = len(self.yaw_angles) + len(self.accelleration)
         #(env.max_agent_seen + 1) ^ (angular_resolution * depth_resolution)
+        self.d_states = {}
+        self.d_actions = {}
+
+
+
     def resolution(self, actions: List) -> None:
         """
         Applies the resolution actions
@@ -200,18 +206,28 @@ class DiscreteEnvironment(Environment):
         #q_table = np.zeros(num_box + (env.action_space.n,))
         q_table = np.zeros(shape=(state_space_size, self.num_actions), dtype='float32')
 
-        print("q_table", len(q_table), q_table)
-        rows = len(q_table)
-        columns = len(q_table[0])
-        print("righe: ", rows, "colonne: ", columns)
+
         print("Q-TABLES INITIALIZATION . . .")
         N_UAVS = self.num_flights
         print("N_UAVS", N_UAVS)
         uavs_q_tables = [None for uav in range(N_UAVS)]
-        explored_states_q_tables = [None for uav in range(N_UAVS)]
+
         for uav in range(N_UAVS):
             uavs_q_tables[uav] = q_table
         print("uavs_q_tables", uavs_q_tables)
+
+        k = angular_resolution * depth_resolution
+        n = range(self.max_agent_seen)
+        print(n)
+        state_combs = list([comb for comb in it.product(*[n for i in range(k)]) if sum(comb)<=self.max_agent_seen])
+        action_combs = list([comb for comb in it.product(*[range(len(a)) for a in self.actions])])
+
+        self.d_states = dict(zip((state_combs), range(len(state_combs))))
+        self.d_actions = dict(zip((action_combs), range(len(action_combs))))
+        print("d_states, d_actions",self.d_states, self.d_actions )
+
+        print("state_combs", state_combs, "\n\n\n action_combs", action_combs )
+
         return uavs_q_tables
 
     def discretize_fov(self, flight_id: int, angular_resolution: int, depth_resolution: int) -> List[Polygon]:

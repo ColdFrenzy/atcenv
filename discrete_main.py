@@ -66,9 +66,38 @@ if __name__ == "__main__":
     # Function to learn the Q-value
     def update(state, state2, reward, action, action2):
         for i in range(env.num_flights):
-            predict = uavs_q_tables[i][state, action]
-            target = reward[i] + gamma * uavs_q_tables[i][state2, action2]
-            uavs_q_tables[i][state, action] = uavs_q_tables[i][state, action] + alpha * (target - predict)
+
+            print(len(uavs_q_tables))
+            print(state[i], "state")
+            print(action[i], "action")
+            print("aoooooooooooooooooooo", uavs_q_tables[i][state[i]])
+            print(state)
+
+
+            state_i = tuple(state[i])
+            state_i_2 = tuple(state2[i])
+
+            print("state_i", state_i)
+            print("action[i]", action[i])
+            print("env.d_states", env.d_states)
+            print("\n\nenv.d_states", env.d_actions)
+            print("\n\nenv.d_actions[action[i]]", env.d_actions[action[i]])
+            print("\n\nenv.d_states[state_i]", env.d_states[state_i])
+            print("env.d_actions[action[i]][0]", action[i][0])
+            #predict = uavs_q_tables[i][env.d_states[state_i], env.d_actions[action[i]]]
+            predict = uavs_q_tables[i][env.d_states[state_i], action[i][0]]
+            print("predict", predict)
+            target = reward[i] + gamma * uavs_q_tables[i][env.d_states[state_i_2], action2[i][0]]
+            #target = reward[i] + gamma * uavs_q_tables[i][env.d_states[state_i_2], env.d_actions[action2[i]]]
+            print("target", target)
+            uavs_q_tables[i][state_i, action[i][0]] = uavs_q_tables[i][state_i, action[i][0]] + alpha * (target - predict)
+
+            print(uavs_q_tables[i][state_i, action[i][0]])
+            print(uavs_q_tables[0])
+            #breakpoint()
+            #predict = uavs_q_tables[i][state, action]
+            #target = reward[i] + gamma * uavs_q_tables[i][state2, action2]
+            #uavs_q_tables[i][state, action] = uavs_q_tables[i][state, action] + alpha * (target - predict)
 
     # run episodes
     for e in tqdm(range(args.episodes)):
@@ -79,7 +108,7 @@ if __name__ == "__main__":
         action1 = choose_action(state1)
         print("action1", action1)
         print("state1", state1)
-        breakpoint()
+
 
 
         # set done status to false
