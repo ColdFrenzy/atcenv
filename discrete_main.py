@@ -25,7 +25,7 @@ if __name__ == "__main__":
     random.seed(42)
     from jsonargparse import ArgumentParser, ActionConfigFile
     from atcenv.envs.discrete_env import DiscreteEnvironment
-    from atcenv.algorithms.SARSA import SARSA
+    from atcenv.algorithms.RL_algorithms import RL_algorithms
     import time
     from tqdm import tqdm
     # writer = tf.summary.create_file_writer("/tmp/mylogs")
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     state_max_val = env.max_agent_seen
     action_max_val = max(len(env.yaw_angles), len(env.accelleration))
 
-    alg = SARSA(action_space_size, state_space_size,
+    alg = RL_algorithms(action_space_size, state_space_size,
                 state_max_val, action_max_val, num_agents)
 
     # run episodes
