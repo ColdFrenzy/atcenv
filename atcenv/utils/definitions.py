@@ -3,7 +3,7 @@ Definitions module
 """
 from shapely.geometry import Point, Polygon
 from dataclasses import dataclass, field
-import atcenv.units as u
+import atcenv.utils.units as u
 import math
 import random
 from typing import Optional, Tuple, List

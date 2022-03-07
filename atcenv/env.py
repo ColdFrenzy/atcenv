@@ -7,7 +7,7 @@ import gym
 import math
 import numpy as np
 from typing import Dict, List
-from atcenv.definitions import *
+from atcenv.utils.definitions import *
 from gym.envs.classic_control import rendering
 from shapely.geometry import LineString, MultiPoint
 from shapely.ops import nearest_points

@@ -111,6 +111,9 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+# tensorboard logs
+tensorboard/
+
 # Environments
 .env
 .venv

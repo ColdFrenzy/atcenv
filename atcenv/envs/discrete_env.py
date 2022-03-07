@@ -2,12 +2,11 @@
 wrapper of the orginal env with discretized action-state space
 """
 from ..env import Environment
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Tuple
 
 import gym
 import math
 import numpy as np
-from typing import Dict, List, Tuple
 # from atcenv.definitions import *
 from gym.envs.classic_control import rendering
 from shapely.geometry import LineString, MultiPoint, Point, Polygon
@@ -36,6 +35,8 @@ class DiscreteEnvironment(Environment):
                  min_distance: Optional[float] = 5.,
                  distance_init_buffer: Optional[float] = 5.,
                  max_agent_seen: Optional[int] = 3,
+                 angular_resolution: Optional[int] = 2,
+                 depth_resolution: Optional[int] = 2,
                  **kwargs):
         """
         Initialises the environment
@@ -49,8 +50,10 @@ class DiscreteEnvironment(Environment):
         :param max_episode_len: maximum episode length (in number of steps)
         :param min_distance: pairs of flights which distance is < min_distance are considered in conflict (in nm)
         :param distance_init_buffer: distance factor used when initialising the enviroment to avoid flights close to conflict and close to the target
-        :param kwargs: other arguments of your custom environment
         :param max_agent_seen: maximum number of closest agents to consider in the partial observation
+        :param angular_resolution: number of elements into which to divide the FoV opening
+        :param depth_resolution:number of elements into which to divide the FoV depth
+        :param kwargs: other arguments of your custom environment
         """
 
         super(DiscreteEnvironment, self).__init__(
@@ -66,19 +69,19 @@ class DiscreteEnvironment(Environment):
             max_agent_seen,
             **kwargs
         )
+        self.angular_resolution = angular_resolution
+        self.depth_resolution = depth_resolution
         # set of flights that reached the target in the previous timestep
         self.prev_step_done = set()
         # define the action space
-        self.yaw_angles = [-5, 0, 5]
+        self.yaw_angles = [-5.0, 0.0, 5.0]
         # 5 kt are ~ 10 km/h
-        self.accelleration = [-5, 0, 5]
+        self.accelleration = [-5.0, 0.0, 5.0]
+        self.action_list = list(it.product(
+            range(len(self.yaw_angles)), range(len(self.accelleration))))
         self.actions = [self.yaw_angles, self.accelleration]
         self.num_actions = len(self.yaw_angles) + len(self.accelleration)
-        #(env.max_agent_seen + 1) ^ (angular_resolution * depth_resolution)
-        self.d_states = {}
-        self.d_actions = {}
-
-
+        # (env.max_agent_seen + 1) ^ (angular_resolution * depth_resolution)
 
     def resolution(self, actions: List) -> None:
         """
@@ -164,7 +167,7 @@ class DiscreteEnvironment(Environment):
         return total_rewards
         ##########################################################
 
-    def observation(self, angular_resolution=2, depth_resolution=2) -> List:
+    def observation(self) -> List:
         """return discretized observation
         a single discrete observation is a np.array of dimension
         angular_resolution*depth_resolution and each element of the array may
@@ -177,14 +180,14 @@ class DiscreteEnvironment(Environment):
         discretized_state = []
         for i, obs in enumerate(all_obs):
             discretized_obs = np.zeros(
-                angular_resolution*depth_resolution, dtype=np.int32)
+                self.angular_resolution*self.depth_resolution, dtype=np.int32)
             # if the obs are all zero just skip
             if np.count_nonzero(obs) == 0:
                 discretized_state.append(discretized_obs)
                 continue
             else:
                 discretized_fov = self.discretize_fov(
-                    i, angular_resolution, depth_resolution)
+                    i, self.angular_resolution, self.depth_resolution)
                 for i in range(0, len(obs), 2):
                     if obs[i] == 0.0 and obs[i+1] == 0.0:
                         continue
@@ -197,38 +200,6 @@ class DiscreteEnvironment(Environment):
                 discretized_state.append(discretized_obs)
 
         return discretized_state
-
-    def q_table(self, angular_resolution = 2, depth_resolution = 2 ):
-        state_space_size = (self.max_agent_seen + 1) ** (angular_resolution * depth_resolution)
-
-        print("dim_space", state_space_size)
-        #num_box = tuple((env.observation_space.high + np.ones(env.observation_space.shape)).astype(int))
-        #q_table = np.zeros(num_box + (env.action_space.n,))
-        q_table = np.zeros(shape=(state_space_size, self.num_actions), dtype='float32')
-
-
-        print("Q-TABLES INITIALIZATION . . .")
-        N_UAVS = self.num_flights
-        print("N_UAVS", N_UAVS)
-        uavs_q_tables = [None for uav in range(N_UAVS)]
-
-        for uav in range(N_UAVS):
-            uavs_q_tables[uav] = q_table
-        print("uavs_q_tables", uavs_q_tables)
-
-        k = angular_resolution * depth_resolution
-        n = range(self.max_agent_seen)
-        print(n)
-        state_combs = list([comb for comb in it.product(*[n for i in range(k)]) if sum(comb)<=self.max_agent_seen])
-        action_combs = list([comb for comb in it.product(*[range(len(a)) for a in self.actions])])
-
-        self.d_states = dict(zip((state_combs), range(len(state_combs))))
-        self.d_actions = dict(zip((action_combs), range(len(action_combs))))
-        print("d_states, d_actions",self.d_states, self.d_actions )
-
-        print("state_combs", state_combs, "\n\n\n action_combs", action_combs )
-
-        return uavs_q_tables
 
     def discretize_fov(self, flight_id: int, angular_resolution: int, depth_resolution: int) -> List[Polygon]:
         """return discretized representation of the FoV.
@@ -287,3 +258,20 @@ class DiscreteEnvironment(Environment):
                 all_polygons.append(Polygon(polygon_points))
 
         return all_polygons
+
+    @property
+    def state_space_size(self):
+        """return the size of the state space
+        """
+        # TODO: there are configuration that will never be seen, we can reduce
+        # the state space these states will be automatically ignored in the
+        # Q-table (for example if we have a FOV with total resolution of 4 and max_agent_seen=3
+        # we will never see a state like [3,3,3,3])
+        return (self.max_agent_seen +
+                1) ** (self.angular_resolution * self.depth_resolution)
+
+    @property
+    def action_space_size(self):
+        """return the size of the action space
+        """
+        return len(max(self.yaw_angles, self.accelleration))**2
