@@ -13,7 +13,7 @@ setuptools.setup(
     author_email='ramon.dalmau-codina@eurocontrol.int',
     url='https://github.com/ramondalmau/atcenv.git',
     classifiers=[
-        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.8",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],

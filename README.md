@@ -1,3 +1,15 @@
+# Installing 
+Python 3.8 is required to run the repo. 
+For mac-os please upgrade to python 3.8.5 if you are experiencing a [Symbol not found error](https://github.com/ray-project/ray/issues/10428).
+
+Use 
+```pip install -r requirements.txt```
+To install all the required modules. Then use:
+```
+pip install ray[tune] ray[rllib]
+```
+For the additional ray libraries
+
 # Wind environment
 
 Now it is possible to set the wind speed (in kt) and its cardinal direction in _env.py_ and the number _n_wind_dir_ of available wind directions (e.g., N, E, S, W) in _atcenv/utils.py_.

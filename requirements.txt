@@ -1,6 +1,10 @@
-jsonargparse==4.1.4
-gym==0.22.0
+jsonargparse==4.3.1
 pygame==2.1.2
-dataclasses==0.6
-shapely==1.7.1
+shapely==1.8.1
 tqdm==4.62.3
+ray==1.11.0
+pandas==1.4.1
+gym==0.23.0
+dm-tree==0.1.6
+wandb==0.12.11
+torch==1.10.0

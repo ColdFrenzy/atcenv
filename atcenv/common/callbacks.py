@@ -12,7 +12,6 @@ from ray.rllib.agents import DefaultCallbacks
 from ray.rllib.evaluation import Episode
 from ray.rllib.utils.typing import PolicyID
 from ray.tune.integration.wandb import WandbLoggerCallback, _clean_log
-import skvideo.io
 
 class MyCallbacks(DefaultCallbacks):
 
