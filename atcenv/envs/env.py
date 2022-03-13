@@ -6,8 +6,9 @@ from typing import Dict, Optional
 import gym
 import math
 import numpy as np
-from typing import Dict, List
-from atcenv.utils.definitions import *
+from typing import List, Tuple
+from atcenv.utils.definitions import Airspace, Flight
+import atcenv.utils.units as u
 from gym.envs.classic_control import rendering
 from shapely.geometry import LineString, MultiPoint
 from shapely.ops import nearest_points
@@ -62,6 +63,14 @@ class Environment(gym.Env):
         self.max_agent_seen = max_agent_seen
         self.dt = dt
 
+        # =============================================================================
+        # ACTIONS
+        # =============================================================================
+        self.yaw_angles = kwargs["yaw_angles"]
+        # 5 kt are ~ 10 km/h
+        self.accelleration = kwargs["accelleration"]
+        self.action_list = kwargs["action_list"]
+
         # tolerance to consider that the target has been reached (in meters)
         self.tol = self.max_speed * 1.05 * self.dt
 
@@ -69,17 +78,31 @@ class Environment(gym.Env):
         self.airspace = None
         self.flights = []  # list of flights
         self.conflicts = set()  # set of flights that are in conflict
+        # set of flights that reached the target in the previous timestep
+        self.prev_step_done = set()
         self.done = set()  # set of flights that reached the target
         self.i = None
 
-    def resolution(self, action: List) -> None:
+    def resolution(self, actions: List) -> None:
         """
         Applies the resolution actions
         If your policy can modify the speed, then remember to clip the speed of each flight
-        In the range [min_speed, max_speed]
+        In the range [min_speed, max_speed].
+        A single action is a tuple of 2 integer in {0,1,2} the first integer
+        represents the angular variation in self.yaw_angle and the second
+        represents the linear velocity variation in self.accellaration
         :param action: list of resolution actions assigned to each flight
         :return:
         """
+        for i, action in enumerate(actions):
+            if i in self.done:
+                continue
+            actual_action = self.action_list[action]
+            self.flights[i].track += math.radians(
+                self.yaw_angles[actual_action[0]])
+            if self.min_speed <= self.flights[i].airspeed + self.accelleration[actual_action[1]] <= self.max_speed:
+                self.flights[i].airspeed += self.accelleration[actual_action[1]]
+
         # RDC: here you should implement your resolution actions
         ##########################################################
         return None
@@ -87,12 +110,25 @@ class Environment(gym.Env):
 
     def reward(self) -> List:
         """
-        Returns the reward assigned to each agent
+        Returns the reward assigned to each agent. At the moment agents receive
+        +1 if they reach the target and -1 if there is a conflict
         :return: reward assigned to each agent
         """
+        total_rewards = []
+        for i, flight in enumerate(self.flights):
+            if i in self.done:
+                total_rewards.append(0.0)
+                continue
+            # TODO: use an external parameter, not -1 and +1
+            conflict_reward = -1.0 if i in self.conflicts else 0.0
+            target_reached_reward = + \
+                1.0 if (i in self.done and i not in self.prev_step_done) else 0.0
+            total_rewards.append(conflict_reward+target_reached_reward)
+        # update the prev_step_done
+        self.prev_step_done.update(self.done)
         # RDC: here you should implement your reward function
         ##########################################################
-        return []
+        return total_rewards
         ##########################################################
 
     def observation(self) -> List:
@@ -130,7 +166,7 @@ class Environment(gym.Env):
 
         # RDC: here you should implement your observation function
         ##########################################################
-        return observations
+        return np.array(observations)
         ##########################################################
 
     def flights_in_fov(self, flight_id: int) -> List:
@@ -351,3 +387,15 @@ class Environment(gym.Env):
         if self.viewer is not None:
             self.viewer.close()
             self.viewer = None
+
+    @property
+    def state_space_dim(self):
+        """return the size of the state space of a single agent
+        """
+        return 2*self.max_agent_seen
+
+    @property
+    def action_space_dim(self):
+        """return the size of the action space of a single agent
+        """
+        return len(self.action_list)

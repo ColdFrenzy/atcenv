@@ -7,6 +7,7 @@ if __name__ == "__main__":
     random.seed(42)
     from jsonargparse import ArgumentParser, ActionConfigFile
     from atcenv import Environment
+    from atcenv.utils.Params import Params
     import time
     from tqdm import tqdm
 
@@ -16,6 +17,7 @@ if __name__ == "__main__":
         print_config='--print_config',
         parser_mode='yaml'
     )
+    parser.add_argument('--parameters_sharing', type=bool, default=True)
     parser.add_argument('--episodes', type=int, default=1)
     parser.add_argument('--config', action=ActionConfigFile)
     parser.add_class_arguments(Environment, 'env')
