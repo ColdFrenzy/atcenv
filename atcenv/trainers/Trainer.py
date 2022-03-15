@@ -2,11 +2,13 @@ import math
 from typing import Dict
 
 import torch
+import copy
 
 
 class Trainer:
     def __init__(self, agents, rollout, env, num_agents, num_episodes, device,
-                 num_steps, learning_epochs):
+                 num_steps, learning_epochs, eval_num_episodes, out_path,
+                 callbacks=None):
         """__init__ method.
 
         Parameters
@@ -26,6 +28,12 @@ class Trainer:
         learning_epochs: int
             number of learning iterations that the algorithm does on the same
             batch of trajectories
+        eval_num_episodes: int
+            number of episodes to evaluate
+        out_path: str
+            location to periodically save networks parameters
+        callbacks: atc.env.callbacks
+            callback object used for logging stuffs. If None nothing is logged
         Returns
         -------
         None.
@@ -35,11 +43,15 @@ class Trainer:
         self.num_episodes = num_episodes
         self.num_steps = num_steps
         self.learning_epochs = learning_epochs
+        self.out_path = out_path
+        self.eval_num_episodes = eval_num_episodes
 
         self.device = device
         self.agents = agents
         self.env = env
         self.rollout = rollout
+
+        self.callback = callbacks
 
     def collect_trajectories(self):
         """Update rollout with new experiences"""
@@ -99,7 +111,7 @@ class Trainer:
     def train(self) -> [torch.Tensor, torch.Tensor, torch.Tensor, Dict[str, Dict]]:
         [model.train_mode() for model in self.agents]
 
-        logs = {str(ag): None for ag in range(self.num_agents)}
+        # logs = {str(ag): None for ag in range(self.num_agents)}
 
         action_losses = [0 for ag in range(self.num_agents)]
         value_losses = [0 for ag in range(self.num_agents)]
@@ -138,7 +150,7 @@ class Trainer:
                             agent_returns, agent_adv_targ, masks_batch
                         )
 
-                    logs[agent_id] = log
+                    # logs[str(agent_id)] = log
 
                     action_losses[agent_id] += float(action_loss)
                     value_losses[agent_id] += float(value_loss)
@@ -151,7 +163,68 @@ class Trainer:
         value_losses = sum(value_losses) / num_updates
         entropies = sum(entropies) / num_updates
 
-        return action_losses, value_losses, entropies, logs
+        if self.callback is not None:
+            self.callback.on_epoch_end(log, self.rollout)
+
+        return action_losses, value_losses, entropies, log
+
+    def evaluate(self):
+        """evaluate the model performances with respect to a baseline.
+        In particular we consider as evaluation metrics the number of conflicts
+        ratio, the time needed to reach destination ratio and the number of
+        agents which actually reached the target ratio between our model and
+        the standard solution (straight path to the target)
+        """
+        [model.eval_mode() for model in self.agents]
+        action_list = [None for _ in range(self.num_agents)]
+        empty_action = []
+        for epochs in range(self.eval_num_episodes):
+            # create the same environment 2 times
+            observation = torch.tensor(self.env.reset())
+            eval_env = copy.deepcopy(self.env)
+            logs = {
+                "eval/conflicts_ratio": 0,
+                "eval/time_ratio": 0,
+                "eval/agents_done_ratio": 0
+            }
+            eval_conflicts = 0
+            eval_dones = 0
+            conflicts = 0
+            dones = 0
+            time_to_complete = 0
+            evel_time_to_complete = 0
+
+            for step in range(self.num_steps):
+                obs = observation.to(self.device)
+
+                for agent_id in range(self.num_agents):
+                    with torch.no_grad():
+                        # no exploration here
+                        value, action, action_log_prob = \
+                            self.agents[agent_id].act(
+                                obs[agent_id], deterministic=True)
+
+                    action_list[agent_id] = action
+
+                _, _, finished, _ = self.env.step(action_list)
+                conflicts += len(self.env.conflicts)
+                if finished:
+                    time_to_complete = step
+                _, _, eval_finished, _ = eval_env.step([])
+                if eval_finished:
+                    eval_time_to_complete = step
+                eval_conflicts += len(eval_env.conflicts)
+            # we check for done agents at the end of the episode
+            dones = len(self.env.done)
+            eval_dones = len(eval_env.done)
+            logs["eval/conflicts_ratio"] = float(
+                eval_conflicts/conflicts) if conflicts > 0 else 0.0
+            logs["eval/time_ratio"] = float(
+                eval_time_to_complete/time_to_complete)
+            logs["eval/agents_done_ratio"] = float(
+                eval_dones/dones) if dones > 0 else 0.0
+            if self.callback is not None:
+                self.callback.on_episode_end(logs)
 
     def checkpoint(self):
         pass
@@ -164,19 +237,3 @@ class Trainer:
 
     def restore_training(self):
         pass
-
-
-# if __name__ == '__main__':
-
-#     trainer = Trainer(ModelFree, PPO_Agent, env, params)
-#     for epoch in tqdm(range(params.epochs, desc="Training...")):
-#         rollout = trainer.collect_trajectories()
-#         action_loss, value_loss, entropy, logs = trainer.train(rollout)
-
-#         if params.use_wandb:
-#             logs = preprocess_logs(
-#                 [value_loss, action_loss, entropy, logs], trainer)
-#             trainer.logger.on_batch_end(
-#                 logs=logs, batch_id=epoch, rollout=rollout)
-
-#         rollout.after_update()

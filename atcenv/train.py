@@ -38,21 +38,20 @@ agents = [PPO_Agent(**agent_configs, policy=behaviour_policy)
 # =============================================================================
 callback_configs = params.get_callback_configs()
 callbacks = CustomWandbCallback(
-    **callback_configs, model=model) if params.use_wandb else None
+    **callback_configs, models=[model]) if params.use_wandb else None
 
 # =============================================================================
 # TRAINER
 # =============================================================================
 trainer_configs = params.get_trainer_configs()
-trainer = Trainer(agents, rollout, env, **trainer_configs)
+trainer = Trainer(agents, rollout, env, callbacks=callbacks, **trainer_configs)
 
 # params.epochs
-for epoch in tqdm(range(2), desc="Training..."):
-    print("\ncollecting trajectories")
+for epoch in tqdm(range(params.epochs), desc="Training..."):
+    print("\nCollecting Trajectories...")
     trainer.collect_trajectories()
-    print("updating models")
+    print("Updating Models...")
     action_loss, value_loss, entropy, logs = trainer.train()
-
-    # if params.use_wandb:
-    #     trainer.logger.on_batch_end(
-    #         logs=logs, batch_id=epoch, rollout=rollout)
+    if epoch % params.val_log_step == 0 and params.val_log_step != 0:
+        print("Evaluating Model...")
+        trainer.evaluate()

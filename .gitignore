@@ -111,6 +111,9 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+# logs
+log_dir/
+
 # tensorboard logs
 tensorboard/
 

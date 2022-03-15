@@ -61,7 +61,6 @@ class CustomWandbCallback(WandbLogger):
             val_log_step: int,
             models: List[nn.Module],
             horizon: int,
-            action_meaning: Dict[str, str],
             **kwargs,
     ):
         """
@@ -81,36 +80,36 @@ class CustomWandbCallback(WandbLogger):
         self.train_log_step = train_log_step if train_log_step > 0 else 2
         self.val_log_step = val_log_step if val_log_step > 0 else 2
         self.horizon = horizon
-        self.action_meaning = action_meaning
         self.epoch = 0
 
-    def on_batch_end(self, logs: Dict[str, Any], batch_id: int, rollout):
+    def on_epoch_end(self, logs: Dict[str, Any], rollout):
         """what to do after training on a batch
 
         :param logs: dictionary of values to log on wandb
-        :param batch_id: 
         :param rollout: rollout of experience used for training
         """
 
-        logs["epoch"] = batch_id
+        logs["epoch"] = self.epoch
 
-        if batch_id % self.log_behavior_step == 0:
+        actions = rollout.actions[:rollout.step].squeeze().cpu().numpy()
+        rewards = rollout.rewards[:rollout.step].squeeze().cpu().numpy()
 
-            actions = rollout.actions[:rollout.step].squeeze().cpu().numpy()
-            rewards = rollout.rewards[:rollout.step].squeeze().cpu().numpy()
-
-            # grids = write_infos(states, rollout, self.params.action_meanings)
-            # logs["behaviour"] = wandb.Video(states, fps=16, format="gif")
-            # logs["behaviour_info"] = wandb.Video(grids, fps=10, format="gif")
-            logs["hist/actions"] = actions
-            logs["hist/rewards"] = rewards
-            logs["mean_reward"] = rewards.mean()
-            logs["episode_length"] = rollout.step
+        # grids = write_infos(states, rollout, self.params.action_meanings)
+        # logs["behaviour"] = wandb.Video(states, fps=16, format="gif")
+        # logs["behaviour_info"] = wandb.Video(grids, fps=10, format="gif")
+        logs["hist/actions"] = actions
+        logs["hist/rewards"] = rewards
+        logs["mean_reward"] = rewards.mean()
 
         self.log_to_wandb(logs, commit=True)
-
-    def on_epoch_end(self, loss: float, logs: Dict[str, Any], model_path: str):
         self.epoch += 1
+
+    def on_episode_end(self, logs):
+        """what to do at the end of an episode.
+
+        :params logs: dictionary of values to log on wandb
+        """
+        self.log_to_wandb(logs, commit=True)
 
 
 def delete_run(run_to_remove: str):

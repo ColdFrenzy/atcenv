@@ -34,22 +34,24 @@ class Params:
     # number of learning iterations that the algorithm does on the same batch
     # of trajectories (trajectories are shuffled at each iteration)
     learning_epochs = 3
+    # number of episode used for evaluating the model
+    eval_num_episodes = 10
     # number of elements on which the algorithm performs a learning step
     minibatch = 32  # 64
     # number of episodes to collect in each rollout
     num_episodes = 2  # 4
-    batch_size = 4
+    batch_size = 64
     framework = "torch"
-    epochs = 10
+    epochs = 1000
 
     # =============================================================================
     # WANDB LOGS
     # =============================================================================
-    use_wandb = False
+    use_wandb = True
     train_log_steps = 5
     val_log_step = 5
     project_name = "atc_challenge"
-    opts = {},
+    opts = {}
 
     # =============================================================================
     # ENVIRONMENT
@@ -60,7 +62,7 @@ class Params:
     min_area = 125. * 125.
     max_speed = 500.
     min_speed = 400
-    max_episode_len = 50  # 300
+    max_episode_len = 300  # 300
     min_distance = 5.
     distance_init_buffer = 5.
     max_agent_seen = 3
@@ -68,7 +70,9 @@ class Params:
     accelleration = [-5.0, 0.0, 5.0]
     action_list = list(it.product(
         range(len(yaw_angles)), range(len(accelleration))))
-
+    # relative distance from the closest "max_agent_seen" + drift angle +
+    # distance from the target
+    state_space_shape = 2*max_agent_seen + 2
     # =============================================================================
     # MULTIAGENT
     # =============================================================================
@@ -194,7 +198,7 @@ class Params:
     def get_rollout_configs(self):
         rollout_configs = dict(
             num_steps=self.max_episode_len*self.num_episodes,
-            obs_shape=self.max_agent_seen*2,
+            obs_shape=self.state_space_shape,
             num_actions=len(self.action_list),
             num_agents=self.num_flights,
             minibatch=self.minibatch,
@@ -230,13 +234,14 @@ class Params:
             max_agent_seen=self.max_agent_seen,
             yaw_angles=self.yaw_angles,
             accelleration=self.accelleration,
-            action_list=self.action_list
+            action_list=self.action_list,
+            state_space_shape=self.state_space_shape
         )
         return env_config
 
     def get_model_configs(self):
         model_configs = dict(
-            input_shape=self.max_agent_seen*2,
+            input_shape=self.state_space_shape,
             action_shape=len(self.action_list),
             share_weights=self.share_weights,
             shared_fc_layers=self.shared_fc_layers,
@@ -248,7 +253,7 @@ class Params:
 
     def get_callback_configs(self):
         callback_configs = dict(
-            train_log_steps=self.train_log_steps,
+            train_log_step=self.train_log_steps,
             val_log_step=self.val_log_step,
             project=self.project_name,
             opts=self.opts,
@@ -265,6 +270,8 @@ class Params:
             num_steps=self.max_episode_len,
             num_episodes=self.num_episodes,
             device=self.device,
-            learning_epochs=self.learning_epochs
+            learning_epochs=self.learning_epochs,
+            out_path=self.MODEL_LOG_DIR,
+            eval_num_episodes=self.eval_num_episodes
         )
         return trainer_configs

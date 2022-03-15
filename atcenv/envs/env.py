@@ -3,6 +3,7 @@ Environment module
 """
 from typing import Dict, Optional
 
+
 import gym
 import math
 import numpy as np
@@ -36,6 +37,7 @@ class Environment(gym.Env):
                  min_distance: Optional[float] = 5.,
                  distance_init_buffer: Optional[float] = 5.,
                  max_agent_seen: Optional[int] = 3,
+                 state_space_shape: Optional[int] = 2,
                  **kwargs):
         """
         Initialises the environment
@@ -51,6 +53,7 @@ class Environment(gym.Env):
         :param distance_init_buffer: distance factor used when initialising the enviroment to avoid flights close to conflict and close to the target
         :param kwargs: other arguments of your custom environment
         :param max_agent_seen: maximum number of closest agents to consider in the partial observation
+        :param state_space_shape: dimension of the state space
         """
         self.num_flights = num_flights
         self.max_area = max_area * (u.nm ** 2)
@@ -71,6 +74,7 @@ class Environment(gym.Env):
         self.accelleration = kwargs["accelleration"]
         self.action_list = kwargs["action_list"]
 
+        self.state_space_shape = state_space_shape
         # tolerance to consider that the target has been reached (in meters)
         self.tol = self.max_speed * 1.05 * self.dt
 
@@ -94,14 +98,17 @@ class Environment(gym.Env):
         :param action: list of resolution actions assigned to each flight
         :return:
         """
-        for i, action in enumerate(actions):
-            if i in self.done:
-                continue
-            actual_action = self.action_list[action]
-            self.flights[i].track += math.radians(
-                self.yaw_angles[actual_action[0]])
-            if self.min_speed <= self.flights[i].airspeed + self.accelleration[actual_action[1]] <= self.max_speed:
-                self.flights[i].airspeed += self.accelleration[actual_action[1]]
+        if len(actions) == 0:
+            return None
+        else:
+            for i, action in enumerate(actions):
+                if i in self.done:
+                    continue
+                actual_action = self.action_list[action]
+                self.flights[i].track += math.radians(
+                    self.yaw_angles[actual_action[0]])
+                if self.min_speed <= self.flights[i].airspeed + self.accelleration[actual_action[1]] <= self.max_speed:
+                    self.flights[i].airspeed += self.accelleration[actual_action[1]]
 
         # RDC: here you should implement your resolution actions
         ##########################################################
@@ -135,15 +142,21 @@ class Environment(gym.Env):
         """
         Returns the observation of each agent. A single agent observation is a
         np.array of dimension 2*self.max_agent_seen. It represents the distances
-        (dx, dy) with the self.max_agent_seen closest flights
+        (dx, dy) with the self.max_agent_seen closest flights.
+        An agent should also know the distance and the angle from its destination 
         :return: observation of each agent
         """
         observations = []
         for i, flight in enumerate(self.flights):
-            obs = np.zeros(self.max_agent_seen * 2, dtype=np.float32)
+            obs = np.zeros(self.state_space_shape, dtype=np.float32)
             if i in self.done:
                 observations.append(obs)
                 continue
+            else:
+                # angle between track and bearing
+                obs[-2] = flight.drift
+                # distance from the target in meters
+                obs[-1] = flight.distance
             origin = flight.position
             seen_agents_indices = self.flights_in_fov(i)
             if len(seen_agents_indices) != 0:
@@ -387,12 +400,6 @@ class Environment(gym.Env):
         if self.viewer is not None:
             self.viewer.close()
             self.viewer = None
-
-    @property
-    def state_space_dim(self):
-        """return the size of the state space of a single agent
-        """
-        return 2*self.max_agent_seen
 
     @property
     def action_space_dim(self):

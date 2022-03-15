@@ -54,9 +54,9 @@ class PPO_Agent:
         """set the model in training mode."""
         self.model.train()
 
-    def act(self, inputs):
+    def act(self, inputs, deterministic=False):
         """select action through the behaviour_policy."""
-        return self.policy.act(inputs)
+        return self.policy.act(inputs, deterministic)
 
     def ppo_step(self, states, actions, log_probs, values, returns, adv_targ, masks):
         """optimization step using the PPO loss.
