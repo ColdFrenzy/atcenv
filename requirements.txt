@@ -8,4 +8,4 @@ gym==0.22.0
 dm-tree==0.1.6
 wandb==0.12.11
 torch==1.10.0
-gputils==1.4.0
+gputils==1.0.4
