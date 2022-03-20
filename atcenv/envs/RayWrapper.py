@@ -13,6 +13,12 @@ class RayWrapper(FlightEnv):
         """
         super().__init__(**env_context)
 
+        if 'env_config' in env_context.keys():
+            num_flights=env_context['env_config']['num_flights']
+        else:
+            num_flights=env_context['num_flights']
+
+        self._agent_ids=[idx for idx in range(num_flights)]
         # define spaces
         # todo: check if low/high is correct
         self.observation_space = gym.spaces.Dict({

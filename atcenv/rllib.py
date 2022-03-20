@@ -16,6 +16,7 @@ if __name__ == '__main__':
     #   Init ray with degub options
     ##########################
 
+    ray.shutdown()
     ray.init(local_mode=True if args.debug else False,
              num_gpus=0 if args.debug else args.num_gpus,
              num_cpus=0 if args.debug else args.num_cpus,

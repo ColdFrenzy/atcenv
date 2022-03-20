@@ -4,7 +4,8 @@ shapely==1.8.1
 tqdm==4.62.3
 ray==1.11.0
 pandas==1.4.1
-gym==0.23.0
+gym==0.22.0
 dm-tree==0.1.6
 wandb==0.12.11
 torch==1.10.0
+gputils==1.0.4
