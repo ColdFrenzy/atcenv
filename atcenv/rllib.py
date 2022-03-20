@@ -3,10 +3,10 @@ from ray import tune
 from ray.rllib.agents import ppo
 from ray.tune.integration.wandb import WandbLoggerCallback
 
-from atcenv.common.callbacks import MyCallbacks, MediaWandbLogger
-from atcenv.common.rllib_configs import multi_agent_configs, eval_configs, resources_configs, ppo_configs, model_configs
-from atcenv.common.utils import parse_args
-from atcenv.envs import get_env_cls
+from common.callbacks import MyCallbacks, MediaWandbLogger
+from common.rllib_configs import multi_agent_configs, eval_configs, resources_configs, ppo_configs, model_configs
+from common.utils import parse_args
+from envs import get_env_cls
 
 if __name__ == '__main__':
 
@@ -17,9 +17,9 @@ if __name__ == '__main__':
     ##########################
 
     ray.init(local_mode=True if args.debug else False,
-             num_gpus=0 if args.debug else 1,
-             num_cpus=0 if args.debug else 6,
-             log_to_driver=False,
+             num_gpus=0 if args.debug else args.num_gpus,
+             num_cpus=0 if args.debug else args.num_cpus,
+             log_to_driver=args.debug,
              )
     env_cls = get_env_cls()
 

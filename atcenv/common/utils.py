@@ -17,6 +17,8 @@ def parse_args():
         parser_mode='yaml'
     )
     parser.add_argument('--episodes', type=int, default=30)
+    parser.add_argument('--num_cpus', type=int, default=1)
+    parser.add_argument('--num_gpus', type=int, default=0)
     parser.add_argument('--config', action=ActionConfigFile)
     parser.add_argument('-debug', action="store_true")
     parser.add_argument('-cur_dir', default=os.getcwd())
