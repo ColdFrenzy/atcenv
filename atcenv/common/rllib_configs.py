@@ -180,7 +180,7 @@ def ppo_configs(args):
 
 def resources_configs(args):
     configs = {
-        "num_workers": 0 if args.debug else 4,
+        "num_workers": 0 if args.debug else args.num_workers,
         "num_gpus": 0 if args.debug else args.num_gpus,
     }
 

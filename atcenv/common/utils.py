@@ -19,6 +19,7 @@ def parse_args():
     parser.add_argument('--episodes', type=int, default=30)
     parser.add_argument('--num_cpus', type=int, default=1)
     parser.add_argument('--num_gpus', type=int, default=0)
+    parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--config', action=ActionConfigFile)
     parser.add_argument('-debug', action="store_true")
     parser.add_argument('-cur_dir', default=os.getcwd())
@@ -27,5 +28,6 @@ def parse_args():
     # parse arguments
     args = parser.parse_args()
 
-    return args
+    assert args.num_workers <= args.num_cpus, f"The number of workers must be less equal to the cpu count. Got {args.num_workers}>{args.num_cpus}"
 
+    return args
