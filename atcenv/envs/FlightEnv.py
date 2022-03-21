@@ -8,11 +8,15 @@ import numpy as np
 import pygame
 from pygame import gfxdraw
 from ray.rllib import MultiAgentEnv
-from shapely.geometry import LineString, MultiPoint
+from shapely.geometry import LineString, MultiPoint, box
 from shapely.ops import nearest_points
 
-from atcenv.common.wind_utils import abs_compass
-from atcenv.definitions import *
+try:
+    from atcenv.common.wind_utils import abs_compass
+    from atcenv.definitions import *
+except:
+    from common.wind_utils import abs_compass
+    from definitions import *
 
 WHITE = [255, 255, 255]
 GREEN = [0, 255, 0]
@@ -41,7 +45,6 @@ def normalizer(maxx, minx, maxy, miny, screen_w, screen_h):
 
     return inner
 
-
 class FlightEnv(MultiAgentEnv):
     metadata = {'render.modes': ['rgb_array']}
 
@@ -50,11 +53,13 @@ class FlightEnv(MultiAgentEnv):
                  dt: float = 5.,
                  max_area: Optional[float] = 200. * 200.,
                  min_area: Optional[float] = 125. * 125.,
+                 min_alt: Optional[float] = 30,
+                 max_alt: Optional[float] = 50,
                  max_speed: Optional[float] = 500.,
                  min_speed: Optional[float] = 400,
-                 max_accel: Optional[float] = 10,
+                 max_accel: Optional[float] = 10, # TODO: più che altro sarebbe bene inserire accel e decel (o semplicement un unico valore per accel e poi modificarlo con il segno + o - in 'resolution')
                  min_accel: Optional[float] = -10,
-                 max_heading_angle: Optional[float] = 5,
+                 max_heading_angle: Optional[float] = 5, # TODO: analgo discorso fatto per min_accel, max_accel
                  min_heading_angle: Optional[float] = -5,
                  max_episode_len: Optional[int] = 300,
                  min_distance: Optional[float] = 5.,
@@ -83,6 +88,10 @@ class FlightEnv(MultiAgentEnv):
         self.num_flights = num_flights
         self.max_area = max_area * (u.nm ** 2)
         self.min_area = min_area * (u.nm ** 2)
+        self.min_alt = min_alt * u.nm
+        self.max_alt = max_alt * u.nm
+        self.crash_alt_th = min_alt - min_alt*25/100 if min_alt>=0 else 0. 
+        self.dim = self.dim_check()
         self.max_speed = max_speed * u.kt
         self.min_speed = min_speed * u.kt
         self.max_accel = max_accel * u.kt
@@ -97,6 +106,12 @@ class FlightEnv(MultiAgentEnv):
         self.wind_speed = wind_speed * u.kt
         self.wind_dir = wind_dir
 
+        # TODO:
+        # Valori di accelerazione vicini a questo faranno clippare ogni nuova velocità, restituendo di fatto sempre gli stessi valori limite (0.0, 1.0, o al massimo 0.5):
+        # Come risultato finale avrà una discretizzazione dell'osservazione della velocità con pochi livelli, diminuendo di fatto il numero di velocità da selezionare.
+        # Una scelta 'buona' per le accelerazioni/decellarazioni 'unitarie' potrebbe essere 'max_speed_variation/n, con n=2,3,?'
+        max_speed_variation = (self.max_speed-self.min_speed)/self.dt 
+
         # tolerance to consider that the target has been reached (in meters)
         self.tol = self.max_speed * 1.05 * self.dt
 
@@ -104,10 +119,12 @@ class FlightEnv(MultiAgentEnv):
         self.screen = None
         self.surf = None
         self.isopen = True
-        self.screen_size=1200
+        self.screen_size = 700
 
         self.airspace = None
         self.flights = {}  # list of flights
+        self.h_conflicts = set()  # set of flights that are in conflict along the vertical plane
+        self.v_conflicts = set()  # set of flights that are in conflict along the horizontal plane 
         self.conflicts = set()  # set of flights that are in conflict
         self.done = {}  # set of flights that reached the target
         self.i = None
@@ -115,6 +132,16 @@ class FlightEnv(MultiAgentEnv):
 
         #
         self.max_dist = None
+
+    def dim_check(self):
+        """
+        Valid dimensione check: returns 2 if env. is 2D, 3 othewise (3D)
+        """
+        assert self.min_alt>=0 and self.max_alt>=0 and self.min_alt<=self.max_alt, 'Invalid altitude parameters selection!'
+        if self.min_alt==self.max_alt:
+            return 2
+        else:
+            return 3
 
     def resolution(self, actions: Dict) -> None:
         """
@@ -144,8 +171,7 @@ class FlightEnv(MultiAgentEnv):
                 accel = self.max_accel
 
             # change airspeed clipping based on max/min speed allowed
-            new_speed = np.clip(f.airspeed + accel, self.min_speed, self.max_speed)
-            f.airspeed = float(new_speed)
+            new_speed = np.clip(f.airspeed + accel*self.dt, self.min_speed, self.max_speed)
 
             # choose track action
             if action['track'] == 0:
@@ -265,12 +291,13 @@ class FlightEnv(MultiAgentEnv):
                     for j, seen_agent_idx in enumerate(seen_agents_indices):
                         x_dist = self.flights[seen_agent_idx].position.x - origin.x
                         y_dist = self.flights[seen_agent_idx].position.y - origin.y
-                        angle = (np.arctan2(y_dist, x_dist) + u.circle) % u.circle
+                        angle = (np.arctan2(y_dist, x_dist) + u.circle) % u.circle # TODO: usiamo sempre math.atan2 invece di np.arctan2 ?
                         angles[j] = min_max_normalizer(angle, 0, 2 * math.pi)
                         dists[j] = math.dist([self.flights[seen_agent_idx].position.x,
                                               self.flights[seen_agent_idx].position.y],
                                              [origin.x, origin.y]) / f.fov_depth
 
+                # TODO: secondo ciclo for forse evitabile
                 else:
                     # set of points of all the agents in the fov
                     seen_agents = MultiPoint(
@@ -293,7 +320,7 @@ class FlightEnv(MultiAgentEnv):
         for i, flight in self.flights.items():
             observations[i] = {}
             # compute observations and normalizations
-            v = min_max_normalizer(flight.airspeed, self.max_speed, self.min_speed)
+            v = min_max_normalizer(flight.airspeed, self.min_speed, self.max_speed)
             b = min_max_normalizer(flight.bearing, 0, 2 * math.pi)
             angles, dists = polar_distance(flight)
             obs = np.concatenate([angles, dists])
@@ -343,8 +370,9 @@ class FlightEnv(MultiAgentEnv):
         # These correspond also to the wind speed absolute components w.r.t. agent position (since we are assuming wind origin right in (0,0):
         wsx = self.wind_speed * math.sin(alpha)
         wsy = self.wind_speed * math.cos(alpha)
+        wsz = 0
 
-        return (wsx, wsy)
+        return (wsx, wsy, wsz)
 
     def track_prediction(self, flight: Flight, dt: Optional[float] = 120) -> Point:
         """
@@ -354,10 +382,11 @@ class FlightEnv(MultiAgentEnv):
         :param: dt: prediction look-ahead time (in seconds)
         :return: current flight actual (track) position (wind effected included)
         """
-        dx, dy = flight.components
+        dx, dy, dz = flight.components
         dx += self.wind_components[0]
         dy += self.wind_components[1]
-        return Point(flight.position.x + dx * dt, flight.position.y + dy * dt)
+        dz += self.wind_components[2] # zero wind components on Z axis
+        return Point(flight.position.x + dx * dt, flight.position.y + dy * dt, flight.position.z + dz * dt)
 
     def wind_direction(self, flight: Flight, dt: Optional[float] = 120) -> Point:
         """
@@ -369,7 +398,8 @@ class FlightEnv(MultiAgentEnv):
         """
         dx = self.wind_components[0]
         dy = self.wind_components[1]
-        return Point(flight.position.x + dx * dt, flight.position.y + dy * dt)
+        dz = self.wind_components[2] # zero wind components on Z axis
+        return Point(flight.position.x + dx * dt, flight.position.y + dy * dt, flight.position.z + dz * dt)
 
     def update_conflicts(self) -> None:
         """
@@ -378,6 +408,8 @@ class FlightEnv(MultiAgentEnv):
         :return:
         """
         # reset set
+        self.v_conflicts = set()
+        self.h_conflicts = set()
         self.conflicts = set()
         # use list for less comparison
         flight_list = list(self.flights.items())
@@ -398,19 +430,32 @@ class FlightEnv(MultiAgentEnv):
                     # skip done id
                     continue
 
-                distance = fi.position.distance(fj.position)
+                #distance = fi.position.distance(fj.position)
+                fi_p = fi.position
+                fj_p = fj.position
+                v_distance = math.dist([fi_p.z], [fj_p.z])
+                h_distance = fi_p.distance(fj_p)
+                distance = math.dist([fi_p.x, fi_p.y, fi_p.z], [fj_p.x, fj_p.y, fj_p.z])
+                if v_distance < self.min_distance:
+                    self.v_conflicts.update((fi_id, fj_id))
+                if h_distance < self.min_distance:
+                    self.h_conflicts.update((fi_id, fj_id))
                 if distance < self.min_distance:
                     self.conflicts.update((fi_id, fj_id))
 
     def update_done(self) -> None:
         """
-        Updates the set of flights that reached the target
+        Updates the set of flights that reached the target 
         :return:
         """
         for i, f in self.flights.items():
             if not self.done[i]:
-                distance = f.position.distance(f.target)
-                if distance < self.tol:
+                #distance = f.position.distance(f.target)
+                f_p = f.position
+                t_p = f.target
+                distance = math.dist([f_p.x, f_p.y, f_p.z], [t_p.x, t_p.y, t_p.z])
+                # The epidose can be considered finished also for all the UAVs crashing on the ground (but if we assume that this kind of crashe is a terminal state, maybe we sould consider also UAV-to-UAV as a terminal state) 
+                if distance < self.tol: # or f_p.z < self.crash_alt_th 
                     self.done[i] = True
 
     def update_positions(self) -> None:
@@ -422,25 +467,26 @@ class FlightEnv(MultiAgentEnv):
         for i, f in self.flights.items():
             if not self.done[i]:
                 # get current speed components
-                dx, dy = f.components
+                dx, dy, dz = f.components
                 # get the current wind components
-                ws_x, ws_y = self.wind_components
+                ws_x, ws_y, ws_z = self.wind_components
 
                 # add wind components (if any)
                 dx += ws_x
-                dy += ws_y
+                dy += ws_y 
+                dz += ws_z # zero wind components on Z axis
 
                 # get current position
                 position = f.position
 
                 # get new position and advance one time step
                 f.position._set_coords(
-                    position.x + dx * self.dt, position.y + dy * self.dt)
+                    position.x + dx * self.dt, position.y + dy * self.dt, position.z + dz * self.dt)
 
     def step(self, actions: dict) -> Tuple[Dict, Dict, Dict, Dict]:
         """
         Performs a simulation step
-
+        
         :param actions: list of resolution actions assigned to each flight
         :return: observation, reward, done status and other information
         """
@@ -486,7 +532,7 @@ class FlightEnv(MultiAgentEnv):
         :return: initial observation
         """
         # create random airspace
-        self.airspace = Airspace.random(self.min_area, self.max_area)
+        self.airspace = Airspace.random(self.min_area, self.max_area, self.min_alt, self.max_alt)
         minx, miny, maxx, maxy = self.airspace.polygon.buffer(
             10 * u.nm).bounds
 
@@ -518,6 +564,8 @@ class FlightEnv(MultiAgentEnv):
         self.i = 0
 
         # clean conflicts and done sets
+        self.v_conflicts = set()
+        self.h_conflicts = set()
         self.conflicts = set()
         self.done = {flight_id: False for flight_id in self.flights.keys()}
         self.done["__all__"] = False
@@ -533,13 +581,47 @@ class FlightEnv(MultiAgentEnv):
         """
 
         # initialise screen
+        if self.dim==3:
+            w_screen = self.screen_size*2
+            w_surf1 = w_screen/2
+        elif self.dim==2:
+            w_screen = self.screen_size
+            w_surf1 = w_screen
+        h_screen = self.screen_size
+        w_surf2 = w_surf1
+        h_surf1 = h_screen
+        h_surf2 = h_surf1/2
+        h_screen = self.screen_size
         if self.screen is None:
             pygame.init()
             if mode == "human":
-                self.screen = pygame.display.set_mode((self.screen_size, self.screen_size))
+                self.screen = pygame.display.set_mode((w_screen, h_screen))
+        
+        # Text
+        txt1 = 'XY-plane'
+        txt2 = 'XZ-plane'
+        txt3 = 'Altitude per Flight'
+        text_size = 50
+        font = pygame.font.SysFont('Calibri', 25, True, False)
+        text1 = font.render(txt1, True, BLACK)
+        text2 = font.render(txt2, True, BLACK)
+        text3 = font.render(txt3, True, BLACK)
+
+        if self.dim==3:
+            #init empty background
+            self.surf2 = pygame.Surface((w_surf2, h_surf2))
+            self.surf2.fill(WHITE)
+            self.surf3 = pygame.Surface((w_surf2, h_surf2))
+            self.surf3.fill(WHITE)
+
+            # display airspace (vertical)
+            #b = box(-50000, -50000, 50000, 50000) # TODO: settare in modo corretto le eventulali dimensioni per una possibile bounding bopx relativa alle visualizzazioni in 3D
+            #b_xy = self.scaler(*b.exterior.coords.xy)
+            #b_xy = np.stack(b_xy, axis=-1)
+            #gfxdraw.aapolygon(self.surf2, b_xy, BLACK)
 
         #init empty background
-        self.surf = pygame.Surface((self.screen_size, self.screen_size))
+        self.surf = pygame.Surface((w_surf1, h_surf1)) 
         self.surf.fill(WHITE)
 
         # display airspace
@@ -551,17 +633,28 @@ class FlightEnv(MultiAgentEnv):
         radius = self.min_distance / 2
         radius /= self.max_dist
         radius *= self.screen_size
-        radius = int(radius)
+        radius = int(radius) 
 
         # add current positions
         for i, f in self.flights.items():
             if self.done[i]:
                 continue
-
+            
             if i in self.conflicts:
-                color = RED
+                v_color = RED
+                h_color = RED
             else:
-                color = BLUE
+                if i in self.v_conflicts:
+                    v_color = GREEN
+                    h_color = BLUE    
+                elif i in self.h_conflicts:
+                    v_color = BLUE
+                    h_color = GREEN
+                else:
+                    v_color = BLUE
+                    h_color = BLUE
+
+            # SURF 1
 
             # add fovs first to avoid drawing on other elements
             xy = self.scaler(*f.fov.exterior.coords.xy)
@@ -570,25 +663,25 @@ class FlightEnv(MultiAgentEnv):
 
             # add drone area
             x, y = self.scaler(f.position.x, f.position.y, use_int=True)
-            gfxdraw.circle(self.surf, x, y, radius, BLUE)
+            gfxdraw.circle(self.surf, x, y, radius, h_color)
 
             # add plan
             plan = LineString([f.position, f.target])
             xy = self.scaler(*plan.coords.xy)
             x, y = np.stack(xy, axis=-1)
-            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=color, width=1)
+            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=h_color, width=1)
 
             # add track prediction
             track_prediction = LineString([f.position, self.track_prediction(flight=f)])
             xy = self.scaler(*track_prediction.coords.xy)
             x, y = np.stack(xy, axis=-1)
-            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=color, width=2)
+            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=h_color, width=2)
 
             # add heading
             heading = LineString([f.position, f.heading_prediction])
             xy = self.scaler(*heading.coords.xy)
             x, y = np.stack(xy, axis=-1)
-            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=color, width=2)
+            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=YELLOW, width=2)
 
             # add wind
             wind_comp = self.wind_direction(flight=f)
@@ -597,13 +690,30 @@ class FlightEnv(MultiAgentEnv):
             x, y = np.stack(xy, axis=-1)
             pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=GREEN, width=2)
 
+            # SURF 2
 
-        self.surf = pygame.transform.flip(self.surf, False, True)
+            # add drone area
+            if self.dim==3:
+                # TODO: scale in a better way the followin points
+                v_x, v_z = self.scaler(f.position.x, f.position.z, use_int=True)
+                gfxdraw.circle(self.surf2, v_x, v_z, radius, v_color)        
+                v_y, v_z = self.scaler(i, f.position.z, use_int=True) # TODO: i, f.position.z vanno selezionati in modo tale da essere centrati rispetto al piano X,Y (anche se rappresentato droni, i, e altitudine, Z, in realtà 'i' fa riferimento all'asse orizzontale e Z all'asse verticale)
+                gfxdraw.circle(self.surf3, v_y, v_z, radius, v_color)
 
         if mode == "human":
+            self.surf = pygame.transform.flip(self.surf, False, True)
             self.screen.blit(self.surf, (0, 0))
+            self.screen.blit(text1, [0, 0])
+            if self.dim==3:
+                self.surf2 = pygame.transform.flip(self.surf2, False, True)
+                self.screen.blit(self.surf2, (w_screen/2, 0))
+                self.screen.blit(text2, [w_screen/2, 0])
+                self.surf3 = pygame.transform.flip(self.surf3, False, True)
+                self.screen.blit(self.surf3, (w_screen/2, h_screen/2))
+                self.screen.blit(text3, [w_screen/2, h_screen/2])
             pygame.display.flip()
 
+        # TODO: da modificare in base al 3D:
         if mode == "rgb_array":
             ret = np.transpose(
                 np.asarray(
@@ -611,7 +721,6 @@ class FlightEnv(MultiAgentEnv):
                 ), axes=(1, 0, 2)
             )
             return ret
-
 
     def close(self) -> None:
         """
