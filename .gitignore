@@ -114,6 +114,8 @@ celerybeat.pid
 # logs
 log_dir/
 
+# wandb log
+atcenv/wandb/
 # tensorboard logs
 tensorboard/
 
