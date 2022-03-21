@@ -19,7 +19,7 @@ class Airspace:
     polygon: Polygon
 
     @classmethod
-    def random(cls, min_area: float, max_area: float):
+    def random(cls, min_area: float, max_area: float, min_h: float, max_h: float):
         """
         Creates a random airspace sector with min_area < area <= max_area
 
@@ -36,11 +36,16 @@ class Airspace:
             y = r * math.sin(alpha)
             return Point(x, y)
 
-        p = [random_point_in_circle(R) for _ in range(3)]
+        def random_point_in_cylinder(radius: float, min_h: Optional[float] = 0, max_h: Optional[float] = 0) -> Point:
+            point2D = random_point_in_circle(radius)
+            z = random.uniform(min_h, max_h)
+            return Point(point2D.x, point2D.y, z)
+
+        p = [random_point_in_cylinder(R, min_h, max_h) for _ in range(3)]
         polygon = Polygon(p).convex_hull
 
         while polygon.area < min_area:
-            p.append(random_point_in_circle(R))
+            p.append(random_point_in_cylinder(R, min_h, max_h))
             polygon = Polygon(p).convex_hull
 
         return cls(polygon=polygon)
@@ -67,6 +72,7 @@ class Flight:
         :return:
         """
         self.track = self.bearing
+        self.altitude_track = self.elevation_angle # 0 # TODO: forse è meglio metterlo uguale a zero assumendo che lungo Z all'inizio nessuno abbia nessuna componente (vanno tutti lungo li piano orizzontale)
         self.airspeed = self.optimal_airspeed
 
     @property
@@ -82,15 +88,27 @@ class Flight:
         return (compass + u.circle) % u.circle
 
     @property
+    def elevation_angle(self) -> float:
+        """
+        Elevation angle between agent and its target
+        :return:
+        """
+        xy_dist = self.position.distance(self.target)
+        # if altitude>=0 --> Z agent is equal or higher than Z target, otherwise Z agent is lower than the Z target 
+        altitude = self.position.z-self.target.z 
+        # bussola
+        # CHECK: Compute the elevation angle between the altitude (computed as the heigt between the agent and its target) and the XY Euclidean distance between the agent and its target 
+        compass = math.atan2(altitude, xy_dist)
+        return (compass + u.circle) % u.circle
+
+    @property
     def heading_prediction(self, dt: Optional[float] = 120) -> Point:
         """
         Predicts the future position after dt seconds related to the heading direction (wind effect not included)   
         :param dt: prediction look-ahead time (in seconds) 
         """
-        dx, dy = self.components
-        return Point(self.position.x + dx * dt, self.position.y + dy * dt)
-
-    # Implementare l'HEADING per la visualizzazione --> !!!!!!!!!!!!!!!!!!!!!!!!
+        dx, dy, dz = self.components
+        return Point(self.position.x + dx * dt, self.position.y + dy * dt, self.position.z + dz * dt)
 
     @property
     def fov(self) -> Polygon:
@@ -128,8 +146,9 @@ class Flight:
         """
         dx = self.airspeed * math.sin(self.track)
         dy = self.airspeed * math.cos(self.track)
+        dz = self.airspeed * math.sin(self.altitude_track) # CHECK: forse è math.sin perchè qua utilizzano gli assi invertiti (??)
 
-        return dx, dy
+        return dx, dy, dz
 
     @property
     def distance(self) -> float:
@@ -137,7 +156,21 @@ class Flight:
         Current distance to the target (in meters)
         :return: distance to the target
         """
-        return self.position.distance(self.target)
+        position = [self.position.x, self.position.y, self.position.y]
+        target = [self.target.x, self.target.y, self.target.y]
+        return math.dist(position, target)
+        #return self.position.distance(self.target)
+
+    @property
+    def drift_clip(self, drift):
+        if drift == math.pi:
+            return drift
+        elif drift < math.pi:
+            return drift
+        elif self.bearing > self.track:
+            return drift - u.circle
+        else:
+            return u.circle - drift
 
     @property
     def drift(self) -> float:
@@ -148,14 +181,18 @@ class Flight:
         drift = self.bearing - self.track
         drift = abs(drift)
 
-        if drift == math.pi:
-            return drift
-        elif drift < math.pi:
-            return drift
-        elif self.bearing > self.track:
-            return drift - u.circle
-        else:
-            return u.circle - drift
+        return self.drift_clip(drift)
+
+    @property
+    def elevation_drift(self) -> float:
+        """
+        Drift angle (difference between track and bearing) to the target
+        :return:
+        """
+        drift = self.elevation_angle - self.altitude_track
+        drift = abs(drift)
+
+        return self.drift_clip(drift)
 
     @classmethod
     def fixed(cls, airspace: Airspace, position: Point, min_speed: float, max_speed: float, flight_id: int,
@@ -178,8 +215,11 @@ class Flight:
         while True:
             d = random.uniform(0, airspace.polygon.boundary.length)
             target = boundary.interpolate(d)
-            if target.distance(position) > tol:
+            tp_dist = math.dist([position.x, position.y, position.z], [target.x, target.y, target.z])
+            if tp_dist > tol:
                 break
+            #if target.distance(position) > tol:
+            #    break
 
         # random speed
         airspeed = random.uniform(min_speed, max_speed)
@@ -187,7 +227,7 @@ class Flight:
         return cls(position, target, airspeed, flight_id)
 
     @classmethod
-    def random(cls, airspace: Airspace, min_speed: float, max_speed: float, flight_id: int, tol: float = 0., ):
+    def random(cls, airspace: Airspace, min_speed: float, max_speed: float, flight_id: int, tol: float = 0.):
         """
         Creates a random flight
 
@@ -201,10 +241,15 @@ class Flight:
 
         def random_point_in_polygon(polygon: Polygon) -> Point:
             minx, miny, maxx, maxy = polygon.bounds
+            poly_coords = list(polygon.exterior.coords)
+            minz, maxz = min([point[2] for point in poly_coords]), max([point[2] for point in poly_coords])
+
             while True:
                 point = Point(random.uniform(minx, maxx),
-                              random.uniform(miny, maxy))
-                if polygon.contains(point):
+                              random.uniform(miny, maxy),
+                              random.uniform(minz, maxz))
+                
+                if polygon.contains(point): # --> A cosa serve questo controllo? --> i punti saranno sempre dentro al polifono per come vengono generati (minx, miny, ...)
                     return point
 
         # random position
@@ -215,8 +260,11 @@ class Flight:
         while True:
             d = random.uniform(0, airspace.polygon.boundary.length)
             target = boundary.interpolate(d)
-            if target.distance(position) > tol:
+            tp_dist = math.dist([position.x, position.y, position.z], [target.x, target.y, target.z])
+            if tp_dist > tol:
                 break
+            #if target.distance(position) > tol:
+            #    break
 
         # random speed
         airspeed = random.uniform(min_speed, max_speed)
