@@ -14,35 +14,21 @@ class RayWrapper(FlightEnv):
         super().__init__(**env_context)
 
         if 'env_config' in env_context.keys():
-            num_flights=env_context['env_config']['num_flights']
+            num_flights = env_context['env_config']['num_flights']
         else:
-            num_flights=env_context['num_flights']
+            num_flights = env_context['num_flights']
 
-        self._agent_ids=[idx for idx in range(num_flights)]
+        self._agent_ids = [idx for idx in range(num_flights)]
         # define spaces
-        # todo: check if low/high is correct
         self.observation_space = gym.spaces.Dict({
             "velocity": gym.spaces.Box(low=0, high=1, shape=(1,)),
             "bearing": gym.spaces.Box(low=0, high=1, shape=(1,)),
             "agents_in_fov": gym.spaces.Box(low=0, high=1, shape=(2 * self.max_agent_seen,)),
-
+            "distance_from_target": gym.spaces.Box(low=0, high=1, shape=(1,))
         }
 
         )
-
-        self.action_space = gym.spaces.Dict({
-            "track": gym.spaces.Discrete(4),
-            # track :
-            # =0: align with target
-            # =1: keep current track
-            # =2: turn left
-            # =3: turn right
-            "accel": gym.spaces.Discrete(3),
-            # accel :
-            # =0: decrease
-            # =1: None
-            # =2: increase
-        })
+        self.action_space = gym.spaces.Discrete(len(self.action_list))
 
         self.done_ids = []
 
@@ -52,7 +38,6 @@ class RayWrapper(FlightEnv):
         # todo:
         #   - rewards:
         #       - discostamento da traiettoria (?)
-
 
         # rllib doesn't want any input from previously done agents, so filter them out
         for done_id in self.done_ids:

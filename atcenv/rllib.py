@@ -1,12 +1,14 @@
+import os
 import ray as ray
 from ray import tune
 from ray.rllib.agents import ppo
 from ray.tune.integration.wandb import WandbLoggerCallback
 
-from common.callbacks import MyCallbacks, MediaWandbLogger
-from common.rllib_configs import multi_agent_configs, eval_configs, resources_configs, ppo_configs, model_configs
-from common.utils import parse_args
-from envs import get_env_cls
+from atcenv.common.callbacks import MyCallbacks, MediaWandbLogger
+from atcenv.common.rllib_configs import multi_agent_configs, eval_configs, resources_configs, ppo_configs, model_configs
+from atcenv.common.utils import parse_args
+from atcenv.envs import get_env_cls
+from ray.tune import CLIReporter
 
 if __name__ == '__main__':
 
@@ -19,8 +21,8 @@ if __name__ == '__main__':
     ray.shutdown()
     ray.init(local_mode=True if args.debug else False,
              num_gpus=0 if args.debug else args.num_gpus,
-             num_cpus=0 if args.debug else args.num_cpus,
-             log_to_driver=args.debug,
+             num_cpus=2 if args.debug else args.num_cpus,
+             log_to_driver=False,  # args.debug,
              )
     env_cls = get_env_cls()
 
@@ -37,11 +39,12 @@ if __name__ == '__main__':
     env_config = dict(env_config=vars(args.env))
     tmp = env_cls(env_config)
 
-    ma_configs = multi_agent_configs(args, tmp.observation_space, tmp.action_space)
+    ma_configs = multi_agent_configs(
+        args, tmp.observation_space, tmp.action_space)
     e_configs = eval_configs(args)
     r_configs = resources_configs(args)
     p_configs = ppo_configs(args)
-    m_configs= model_configs(args)
+    m_configs = model_configs(args)
 
     config.update(ma_configs)
     config.update(e_configs)
@@ -63,12 +66,13 @@ if __name__ == '__main__':
         resume=True,
     )
 
-
     callbakcs.append(wandb)
 
     ##########################
     #   Start Training
     ##########################
+    # check the hardware resources needed.
+    # print(ppo.PPOTrainer.default_resource_request(config=config)._bundles)
 
     tune.run(
         ppo.PPOTrainer,
@@ -79,6 +83,6 @@ if __name__ == '__main__':
 
         # a very useful trick! this will resume from the last run specified by
         # sync_config (if one exists), otherwise it will start a new tuning run
-        resume=False,
-
+        resume=args.resume,
+        progress_reporter=CLIReporter()
     )

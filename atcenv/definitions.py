@@ -6,7 +6,7 @@ import random
 from dataclasses import dataclass, field
 from typing import Optional, Tuple
 
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point, Polygon, LineString
 
 import atcenv.common.units as u
 
@@ -68,8 +68,10 @@ class Flight:
         """
         self.track = self.bearing
         self.airspeed = self.optimal_airspeed
+        self.optimal_trajectory = LineString(
+            [(self.position.x, self.position.y), (self.target.x, self.target.y)])
 
-    @property
+    @ property
     def bearing(self) -> float:
         """
         Bearing from current position to target
@@ -81,18 +83,25 @@ class Flight:
         compass = math.atan2(dx, dy)
         return (compass + u.circle) % u.circle
 
-    @property
+    @ property
+    def distance_from_optimal_trajectory(self) -> float:
+        """
+        Compute the distance from the optimal trajectory
+        """
+        return self.position.distance(self.optimal_trajectory)
+
+    @ property
     def heading_prediction(self, dt: Optional[float] = 120) -> Point:
         """
-        Predicts the future position after dt seconds related to the heading direction (wind effect not included)   
-        :param dt: prediction look-ahead time (in seconds) 
+        Predicts the future position after dt seconds related to the heading direction (wind effect not included)
+        :param dt: prediction look-ahead time (in seconds)
         """
         dx, dy = self.components
         return Point(self.position.x + dx * dt, self.position.y + dy * dt)
 
     # Implementare l'HEADING per la visualizzazione --> !!!!!!!!!!!!!!!!!!!!!!!!
 
-    @property
+    @ property
     def fov(self) -> Polygon:
         """
         Returns the field of view of the given flight
@@ -120,7 +129,7 @@ class Flight:
         return Polygon(fov_vertices)
         ##########################################################
 
-    @property
+    @ property
     def components(self) -> Tuple:
         """
         X and Y Speed components (in kt)
@@ -131,7 +140,7 @@ class Flight:
 
         return dx, dy
 
-    @property
+    @ property
     def distance(self) -> float:
         """
         Current distance to the target (in meters)
@@ -139,25 +148,22 @@ class Flight:
         """
         return self.position.distance(self.target)
 
-    @property
+    @ property
     def drift(self) -> float:
         """
         Drift angle (difference between track and bearing) to the target
         :return:
         """
         drift = self.bearing - self.track
-        drift = abs(drift)
 
-        if drift == math.pi:
-            return drift
-        elif drift < math.pi:
-            return drift
-        elif self.bearing > self.track:
-            return drift - u.circle
+        if drift > math.pi:
+            return -(u.circle - drift)
+        elif drift < -math.pi:
+            return (u.circle + drift)
         else:
-            return u.circle - drift
+            return drift
 
-    @classmethod
+    @ classmethod
     def fixed(cls, airspace: Airspace, position: Point, min_speed: float, max_speed: float, flight_id: int,
               tol: float = 0.):
         """
@@ -220,7 +226,7 @@ class Flight:
 
         # random speed
         airspeed = random.uniform(min_speed, max_speed)
-        fov_depth = 20*u.nm
+        fov_depth = 30*u.nm
         fov_angle = math.pi / 2
 
         return cls(position, target, airspeed, flight_id, fov_depth=fov_depth, fov_angle=fov_angle)

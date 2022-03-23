@@ -154,6 +154,13 @@ cython_debug/
 
 atcenv/wandb/
 
+wandb/
+
+videos/
+
 atcenv/videos/
 
+atcenv/modifiche_rllib.txt
+
 atcenv/log_dir/
+.vscode/launch.json

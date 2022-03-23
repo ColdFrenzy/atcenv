@@ -6,6 +6,7 @@ from typing import Dict, List
 
 import numpy as np
 import pygame
+import itertools as it
 from pygame import gfxdraw
 from ray.rllib import MultiAgentEnv
 from shapely.geometry import LineString, MultiPoint
@@ -52,10 +53,8 @@ class FlightEnv(MultiAgentEnv):
                  min_area: Optional[float] = 125. * 125.,
                  max_speed: Optional[float] = 500.,
                  min_speed: Optional[float] = 400,
-                 max_accel: Optional[float] = 10,
-                 min_accel: Optional[float] = -10,
-                 max_heading_angle: Optional[float] = 5,
-                 min_heading_angle: Optional[float] = -5,
+                 accelleration: Optional[List[float]] = [-5.0, 0.0, 5.0],
+                 yaw_angles: Optional[List[float]] = [-5.0, 0.0, 5.0],
                  max_episode_len: Optional[int] = 300,
                  min_distance: Optional[float] = 5.,
                  distance_init_buffer: Optional[float] = 5.,
@@ -64,7 +63,7 @@ class FlightEnv(MultiAgentEnv):
                  wind_dir: Optional[str] = 'NW3',
                  **kwargs):
         """
-        Initialises the environment
+        Initialise the environment.
 
         :param num_flights: numer of flights in the environment
         :param dt: time step (in seconds)
@@ -72,6 +71,8 @@ class FlightEnv(MultiAgentEnv):
         :param min_area: minimum area of the sector (in nm^2)
         :param max_speed: maximum speed of the flights (in kt)
         :param min_speed: minimum speed of the flights (in kt)
+        :param accelleration: available accelleration actions in m/s^2
+        :param yaw_angles: available yaw angles actions in deg,
         :param max_episode_len: maximum episode length (in number of steps)
         :param min_distance: pairs of flights which distance is < min_distance are considered in conflict (in nm)
         :param distance_init_buffer: distance factor used when initialising the enviroment to avoid flights close to conflict and close to the target
@@ -85,10 +86,6 @@ class FlightEnv(MultiAgentEnv):
         self.min_area = min_area * (u.nm ** 2)
         self.max_speed = max_speed * u.kt
         self.min_speed = min_speed * u.kt
-        self.max_accel = max_accel * u.kt
-        self.min_accel = min_accel * u.kt
-        self.max_heading_angle = math.radians(max_heading_angle)
-        self.min_heading_angle = math.radians(min_heading_angle)
         self.min_distance = min_distance * u.nm
         self.max_episode_len = max_episode_len
         self.distance_init_buffer = distance_init_buffer
@@ -104,7 +101,7 @@ class FlightEnv(MultiAgentEnv):
         self.screen = None
         self.surf = None
         self.isopen = True
-        self.screen_size=1200
+        self.screen_size = 1200
 
         self.airspace = None
         self.flights = {}  # list of flights
@@ -113,8 +110,17 @@ class FlightEnv(MultiAgentEnv):
         self.i = None
         self.wind_components = self.wind_effect()
 
-        #
-        self.max_dist = None
+        # =============================================================================
+        # ACTIONS
+        # =============================================================================
+        self.yaw_angles = [math.radians(angle) for angle in yaw_angles]
+        self.accelleration = [acc*u.kt for acc in accelleration]
+        # action_space contains all combinations of angles and accelleration
+        # action_space = [(-5.0, -5.0), (-5.0, 0.0), (-5.0, 5.0), ..., (5.0, 5.0)]
+        self.action_list = list(it.product(
+            self.yaw_angles, self.accelleration))
+        # Distance between the furthest points in the airspace
+        self.max_distance = None
 
     def resolution(self, actions: Dict) -> None:
         """
@@ -124,51 +130,29 @@ class FlightEnv(MultiAgentEnv):
         :param actions: dict of resolution actions assigned to each flight
         :return:
         """
+        ##########################################################
         # RDC: here you should implement your resolution actions
         ##########################################################
-
+        self.accelleration_penalty = {k: 0 for k in self.flights.keys()}
+        self.changed_angle_penalty = {k: 0 for k in self.flights.keys()}
         for f_id, action in actions.items():
             f = self.flights[f_id]
-
-            # choose track action
-            accel = 0
-            if action['accel'] == 0:
-                # slower
-                accel = self.min_accel
-            elif action['accel'] == 1:
-                # no accel
-                pass
-
-            elif action['accel'] == 2:
-                # faster
-                accel = self.max_accel
-
-            # change airspeed clipping based on max/min speed allowed
-            new_speed = np.clip(f.airspeed + accel, self.min_speed, self.max_speed)
-            f.airspeed = float(new_speed)
-
-            # choose track action
-            if action['track'] == 0:
-                # align with target
-                f.track = f.bearing
-            elif action['track'] == 1:
-                # keep current track
-                pass
-            elif action['track'] == 2:
-                # turn left
-                f.track += self.max_heading_angle
-            elif action['track'] == 3:
-                # turn right
-                f.track += self.min_heading_angle
+            actual_action = self.action_list[action]
+            if actual_action[0] != 0.0:
+                self.changed_angle_penalty[f_id] = 1.0
+            f.track += actual_action[0]
+            # change airspeed only if the new airspeed is the [self.min_speed, self.max_speed] range
+            if self.min_speed <= f.airspeed + actual_action[1]*self.dt <= self.max_speed:
+                f.airspeed += actual_action[1]
             else:
-                raise ValueError(f"Track action must be in range [0,3], got '{action['track']}'")
+                self.accelleration_penalty[f_id] = 1.0
 
     def reward(self) -> Dict:
         """
         Returns the reward assigned to each agent
         :return: reward assigned to each agent
         """
-
+        ##########################################################
         # RDC: here you should implement your reward function
         ##########################################################
 
@@ -198,9 +182,12 @@ class FlightEnv(MultiAgentEnv):
             Return the normalized distance between the flight and its target
             """
             dist = f.distance
-            dist /= self.max_dist
+            dist /= self.max_distance
 
-            assert 0 <= dist <= 1, f"Distance in not normalized, got '{dist}'"
+            # During exploration it may happen that the Flight goes outside the Airspace
+            if dist >= 1:
+                dist = 1
+            # assert 0 <= dist <= 1, f"Distance in not normalized, got '{dist}'"
             return dist
 
         def target_reached(f) -> bool:
@@ -213,14 +200,23 @@ class FlightEnv(MultiAgentEnv):
             if dist < self.tol:
                 return True
             return False
-
-        collision_weight = -1
-        dist_weight = -1
-        target_reached_w = +1
+        # WEIGHTS OF THE REWARDS
+        collision_weight = -1.0
+        dist_weight = - 1.0
+        target_reached_w = + 1.0
+        accelleration_penalty_w = - 0.1
+        distance_from_optimal_trajectory_w = - 0.01
+        changed_angle_penalty_w = - 0.01
         rews = {k: 0 for k in self.flights.keys()}
 
         for f_id, flight in self.flights.items():
-            #rews[f_id] += target_dist(flight) * dist_weight
+            rews[f_id] += target_dist(flight) * dist_weight
+            rews[f_id] += self.accelleration_penalty[f_id] * \
+                accelleration_penalty_w
+            rews[f_id] += flight.distance_from_optimal_trajectory * \
+                distance_from_optimal_trajectory_w
+            rews[f_id] += self.changed_angle_penalty[f_id] * \
+                changed_angle_penalty_w
             if target_reached(flight):
                 rews[f_id] += target_reached_w
 
@@ -265,7 +261,8 @@ class FlightEnv(MultiAgentEnv):
                     for j, seen_agent_idx in enumerate(seen_agents_indices):
                         x_dist = self.flights[seen_agent_idx].position.x - origin.x
                         y_dist = self.flights[seen_agent_idx].position.y - origin.y
-                        angle = (np.arctan2(y_dist, x_dist) + u.circle) % u.circle
+                        angle = (np.arctan2(y_dist, x_dist) +
+                                 u.circle) % u.circle
                         angles[j] = min_max_normalizer(angle, 0, 2 * math.pi)
                         dists[j] = math.dist([self.flights[seen_agent_idx].position.x,
                                               self.flights[seen_agent_idx].position.y],
@@ -280,7 +277,8 @@ class FlightEnv(MultiAgentEnv):
                         nearest_agent = nearest_points(origin, seen_agents)[1]
                         x_dist = nearest_agent.x - origin.x
                         y_dist = nearest_agent.y - origin.y
-                        angle = (np.arctan2(y_dist, x_dist) + u.circle) % u.circle
+                        angle = (np.arctan2(y_dist, x_dist) +
+                                 u.circle) % u.circle
                         angles[j] = min_max_normalizer(angle, 0, 2 * math.pi)
                         dists[j] = math.dist([nearest_agent.x,
                                               nearest_agent.y],
@@ -290,22 +288,30 @@ class FlightEnv(MultiAgentEnv):
             return angles, dists
 
         observations = {}
+
         for i, flight in self.flights.items():
             observations[i] = {}
             # compute observations and normalizations
-            v = min_max_normalizer(flight.airspeed, self.max_speed, self.min_speed)
+            v = min_max_normalizer(
+                flight.airspeed, self.max_speed, self.min_speed)
             b = min_max_normalizer(flight.bearing, 0, 2 * math.pi)
+            d = min_max_normalizer(
+                flight.distance, 0, self.max_distance)
+            if d > 1.0:
+                d = 1.0
             angles, dists = polar_distance(flight)
             obs = np.concatenate([angles, dists])
 
-            #
             assert 0 <= v <= 1, f"Airspeed is not in range [0,1]. Got '{v}'"
             assert 0 <= b <= 1, f"Bearing is not in range [0,1]. Got '{b}'"
-            assert all([0 <= x <= 1 for x in obs]), f"obs is not in range [0,1]. Got '{obs}'"
+
+            assert all([0 <= x <= 1 for x in obs]
+                       ), f"obs is not in range [0,1]. Got '{obs}'"
 
             observations[i]['velocity'] = np.asarray([v])
             observations[i]['bearing'] = np.asarray([b])
             observations[i]['agents_in_fov'] = obs
+            observations[i]['distance_from_target'] = np.asarray([d])
 
         return observations
 
@@ -487,11 +493,13 @@ class FlightEnv(MultiAgentEnv):
         """
         # create random airspace
         self.airspace = Airspace.random(self.min_area, self.max_area)
-        minx, miny, maxx, maxy = self.airspace.polygon.buffer(
-            10 * u.nm).bounds
+        # max distance is computed as the distance between the two opposite vertices of the airspace bounding box in meters
+        self.max_distance = math.sqrt(((self.airspace.polygon.bounds[2]-self.airspace.polygon.bounds[0])**2 +
+                                       (self.airspace.polygon.bounds[3]-self.airspace.polygon.bounds[1])**2) * u.nm)
+        minx, miny, maxx, maxy = self.airspace.polygon.bounds
 
-        self.max_dist = LineString([(minx, miny), (maxx, maxy)]).length
-        self.scaler = normalizer(maxx, minx, maxy, miny, self.screen_size, self.screen_size)
+        self.scaler = normalizer(
+            maxx, minx, maxy, miny, self.screen_size, self.screen_size)
 
         # create random flights
         self.flights = {}
@@ -536,9 +544,10 @@ class FlightEnv(MultiAgentEnv):
         if self.screen is None:
             pygame.init()
             if mode == "human":
-                self.screen = pygame.display.set_mode((self.screen_size, self.screen_size))
+                self.screen = pygame.display.set_mode(
+                    (self.screen_size, self.screen_size))
 
-        #init empty background
+        # init empty background
         self.surf = pygame.Surface((self.screen_size, self.screen_size))
         self.surf.fill(WHITE)
 
@@ -549,7 +558,7 @@ class FlightEnv(MultiAgentEnv):
 
         # estimate radius
         radius = self.min_distance / 2
-        radius /= self.max_dist
+        radius /= self.max_distance
         radius *= self.screen_size
         radius = int(radius)
 
@@ -576,27 +585,31 @@ class FlightEnv(MultiAgentEnv):
             plan = LineString([f.position, f.target])
             xy = self.scaler(*plan.coords.xy)
             x, y = np.stack(xy, axis=-1)
-            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=color, width=1)
+            pygame.draw.line(self.surf, start_pos=x,
+                             end_pos=y, color=color, width=1)
 
             # add track prediction
-            track_prediction = LineString([f.position, self.track_prediction(flight=f)])
+            track_prediction = LineString(
+                [f.position, self.track_prediction(flight=f)])
             xy = self.scaler(*track_prediction.coords.xy)
             x, y = np.stack(xy, axis=-1)
-            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=color, width=2)
+            pygame.draw.line(self.surf, start_pos=x,
+                             end_pos=y, color=color, width=2)
 
             # add heading
             heading = LineString([f.position, f.heading_prediction])
             xy = self.scaler(*heading.coords.xy)
             x, y = np.stack(xy, axis=-1)
-            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=color, width=2)
+            pygame.draw.line(self.surf, start_pos=x,
+                             end_pos=y, color=color, width=2)
 
             # add wind
             wind_comp = self.wind_direction(flight=f)
             wind = LineString([f.position, wind_comp])
             xy = self.scaler(*wind.coords.xy)
             x, y = np.stack(xy, axis=-1)
-            pygame.draw.line(self.surf, start_pos=x, end_pos=y, color=GREEN, width=2)
-
+            pygame.draw.line(self.surf, start_pos=x,
+                             end_pos=y, color=GREEN, width=2)
 
         self.surf = pygame.transform.flip(self.surf, False, True)
 
@@ -611,7 +624,6 @@ class FlightEnv(MultiAgentEnv):
                 ), axes=(1, 0, 2)
             )
             return ret
-
 
     def close(self) -> None:
         """

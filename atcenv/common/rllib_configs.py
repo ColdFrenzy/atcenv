@@ -6,11 +6,11 @@ def model_configs(args):
             # FullyConnectedNetwork (tf and torch): rllib.models.tf|torch.fcnet.py
             # These are used if no custom model is specified and the input space is 1D.
             # Number of hidden layers to be used.
-            "fcnet_hiddens": [512, 1024, 512 ],
+            "fcnet_hiddens": [64, 16, 32],
             # Activation function descriptor.
             # Supported values are: "tanh", "relu", "swish" (or "silu"),
             # "linear" (or None).
-            "fcnet_activation": "relu",
+            "fcnet_activation": "tanh",
 
             # VisionNetwork (tf and torch): rllib.models.tf|torch.visionnet.py
             # These are used if no custom model is specified and the input space is 2D.
@@ -45,11 +45,11 @@ def model_configs(args):
             # should already match num_outputs.
             "no_final_linear": False,
             # Whether layers should be shared for the value function.
-            "vf_share_layers": True,
+            "vf_share_layers": False,
 
             # == LSTM ==
             # Whether to wrap the model with an LSTM.
-            "use_lstm": True,
+            "use_lstm": False,
             # Max seq len for training the LSTM, defaults to 20.
             "max_seq_len": 20,
             # Size of the LSTM cell.
@@ -89,7 +89,7 @@ def model_configs(args):
 
             # == Atari ==
             # Set to True to enable 4x stacking behavior.
-            "framestack": True,
+            "framestack": False,
             # Final resized frame dimension
             "dim": 84,
             # (deprecated) Converts ATARI frame to 1 Channel Grayscale image
@@ -117,7 +117,6 @@ def model_configs(args):
 
 
 def ppo_configs(args):
-
 
     configs = {
         # Should use a critic as a baseline (otherwise don't use value baseline;
@@ -156,7 +155,7 @@ def ppo_configs(args):
             "vf_share_layers": False,
         },
         # Coefficient of the entropy regularizer.
-        "entropy_coeff": 0.0,
+        "entropy_coeff": 0.01,
         # Decay schedule for the entropy regularizer.
         "entropy_coeff_schedule": None,
         # PPO clip parameter.
@@ -224,6 +223,7 @@ def multi_agent_configs(args, obs_space, action_space):
                 "default": (None, obs_space, action_space, {}),
 
             },
+
             "policy_mapping_fn": lambda x: "default",
         },
     }
