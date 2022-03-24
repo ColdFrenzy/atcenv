@@ -45,7 +45,7 @@ class LoggerWrapper(RayWrapper):
                  for x in actions.values()]
 
         accel = np.asarray(accel).mean()
-        #track = np.bincount(track).argmax()
+        track = np.bincount(track).argmax()
         self.logging_actions['accel'].append(accel)
         self.logging_actions['track'].append(track)
 
