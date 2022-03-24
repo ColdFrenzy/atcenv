@@ -75,14 +75,11 @@ class MyCallbacks(DefaultCallbacks):
         speed_diff = [abs(f.optimal_airspeed - f.airspeed) for f in flights]
 
         episode.custom_metrics["num_conflicts"] = self.num_conflicts / 2
-        episode.custom_metrics["speed_diff"] = float(
-            np.asarray(speed_diff).mean())
-        episode.custom_metrics["actions_accel"] = np.asarray(
-            env.logging_actions['accel']).mean()
-        #episode.custom_metrics["actions_track"] = float(np.bincount(env.logging_actions['track']).argmax())
-        episode.custom_metrics["non_zero_obs"] = float(
-            np.asarray(env.logging_obs['non_zero']).mean())
-        episode.hist_data["actions_track"] = env.logging_actions['track']
+        episode.custom_metrics["speed_diff"] = float(np.asarray(speed_diff).mean())
+        episode.custom_metrics["actions_accel"] = np.asarray(env.logging_actions['accel']).mean()
+        episode.custom_metrics["actions_track"] = float(np.bincount(env.logging_actions['track']).argmax())
+        episode.custom_metrics["non_zero_obs"] = float(np.asarray(env.logging_obs['non_zero']).mean())
+        #episode.hist_data["actions_track"] = env.logging_actions['track']
 
         # get all the agents that reached the target
         done_ids = [v for k, v in env.done.items() if v and k != "__all__"]
