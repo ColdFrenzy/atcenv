@@ -75,10 +75,16 @@ class MyCallbacks(DefaultCallbacks):
         speed_diff = [abs(f.optimal_airspeed - f.airspeed) for f in flights]
 
         episode.custom_metrics["num_conflicts"] = self.num_conflicts / 2
-        episode.custom_metrics["speed_diff"] = float(np.asarray(speed_diff).mean())
-        episode.custom_metrics["actions_accel"] = np.asarray(env.logging_actions['accel']).mean()
-        episode.custom_metrics["actions_track"] = float(np.bincount(env.logging_actions['track']).argmax())
-        episode.custom_metrics["non_zero_obs"] = float(np.asarray(env.logging_obs['non_zero']).mean())
+        episode.custom_metrics["speed_diff"] = float(
+            np.asarray(speed_diff).mean())
+        episode.custom_metrics["actions_accel"] = np.asarray(
+            env.logging_actions['accel']).mean()
+        # bin error gave an error if we have negative values and the track
+        # actions may have them
+        # episode.custom_metrics["actions_track"] = float(
+        #     np.bincount(env.logging_actions['track']).argmax())
+        episode.custom_metrics["non_zero_obs"] = float(
+            np.asarray(env.logging_obs['non_zero']).mean())
         #episode.hist_data["actions_track"] = env.logging_actions['track']
 
         # get all the agents that reached the target
@@ -118,14 +124,6 @@ class MediaWandbLogger(WandbLoggerCallback):
             "behaviour": wandb.Video(media, format="mp4")}
 
         # empty video dir
-        # [os.unlink(x) for x in files]
-
-        ##############################
-        #   histograms
-        ###############################
-
-        action_track = result['hist_stats']['actions_track']
-        action_track = [x for sub in action_track for x in sub]
-        result['hist_stats']['actions_track'] = wandb.Histogram(action_track)
+        [os.unlink(x) for x in files]
 
         self._trial_queues[trial].put(result)

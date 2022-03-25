@@ -312,6 +312,12 @@ class FlightEnv(MultiAgentEnv):
             observations[i]['bearing'] = np.asarray([b])
             observations[i]['agents_in_fov'] = obs
             observations[i]['distance_from_target'] = np.asarray([d])
+            # The mask removes angle actions if there is no Flight in the FOV
+            observations[i]['action_mask'] = np.ones(len(self.action_list))
+            if np.count_nonzero(obs) == 0:
+                for j in range(len(self.action_list)):
+                    if self.action_list[j][0] != 0.0:
+                        observations[i]["action_mask"][j] = 0.
 
         return observations
 

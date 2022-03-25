@@ -99,12 +99,21 @@ def model_configs(args):
 
             # === Options for custom models ===
             # Name of a custom model to use
-            "custom_model": None,
+            "custom_model": "flight_model_mask",
             # Extra options to pass to the custom classes. These will be available to
             # the Model's constructor in the model_config field. Also, they will be
             # attempted to be passed as **kwargs to ModelV2 models. For an example,
             # see rllib/models/[tf|torch]/attention_net.py.
-            "custom_model_config": {},
+            "custom_model_config": {
+                # if to use the same architecture for the actor-critic
+                "share_weights": False,
+                # fc_layers is a tuple of 1 or 2 elements. If len(fc_layers)==1 we use
+                # the same structure for both actor and critic network, otherwise the first
+                # element are the layers of the critic and the second are the layers of
+                # the actor. if share_weights=True we use the first element as shared architecture.
+                "shared_fc_layers": ([128, 64, 32],),
+                "fc_layers": ([], [])
+            },
             # Name of a custom action distribution to use.
             "custom_action_dist": None,
             # Custom preprocessors are deprecated. Please use a wrapper class around
