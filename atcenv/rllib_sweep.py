@@ -1,17 +1,16 @@
-import os
 import ray as ray
+from hyperopt import hp
 from ray import tune
-from ray.rllib.agents import ppo
-from ray.tune.integration.wandb import WandbLoggerCallback
+from ray.tune import CLIReporter
+from ray.tune.schedulers import ASHAScheduler
+from ray.tune.suggest.hyperopt import HyperOptSearch
 
 from atcenv.common.callbacks import MyCallbacks, MediaWandbLogger
 from atcenv.common.rllib_configs import multi_agent_configs, eval_configs, resources_configs, ppo_configs, model_configs
 from atcenv.common.utils import parse_args
 from atcenv.envs import get_env_cls
-from ray.tune import CLIReporter
 
 if __name__ == '__main__':
-
     args = parse_args()
 
     ##########################
@@ -56,26 +55,55 @@ if __name__ == '__main__':
     ########################
     # SWEEP PARAMS
     ########################
+    # Step 1: Specify the search space
 
-    #PPO
-    config['lr'] = tune.grid_search([5e-3, 5e-4, 5e-5])
-    config['vf_clip_param'] = tune.grid_search([100, 10, 1])
-    config['batch_mode'] = tune.grid_search(["truncate_episodes", "complete_episodes"])
+    ppo = False
+    lstm = False
+    attention = False
+    fc = False
+    hyperopt_space = {}
 
-    # Model LSTM
-    # config['model']['use_lstm'] = tune.grid_search([True, False])
-    # config['model']['lstm_use_prev_action'] = tune.grid_search([True, False])
-    # config['model']['lstm_use_prev_reward'] = tune.grid_search([True, False])
+    if ppo:
+        hyperopt_space.update(
+            {
+                # PPO
+                "lr": hp.uniform("netG_lr", 1e-5, 1e-2),
+                "netD_lr": hp.quniform("vf_clip_param", 1, 100, 10),
+                "batch_mode": hp.choice("batch_mode", ["truncate_episodes", "complete_episodes"])
+            }
+        )
+    #########
+    # MODEL
+    #########
+    if lstm and not attention:
+        hyperopt_space.update(
+            {
+                "use_lstm": hp.choice("use_lstm", [True]),
+                "lstm_use_prev_action": hp.choice("lstm_use_prev_action", [True, False]),
+                "lstm_use_prev_reward": hp.choice("lstm_use_prev_reward", [True, False]),
+            }
+        )
 
-    # Model Attention
-    # config['model']['use_attention'] = tune.grid_search([True, False])
-    # config['model']['attention_num_heads'] = tune.grid_search([1,4,8])
-    # config['model']['attention_num_transformer_units'] = tune.grid_search([1, 2])
-    # config['model']['use_attention'] = tune.grid_search([True, False])
+    if attention and not lstm:
+        hyperopt_space.update(
+            {
+                "use_attention": hp.choice("use_attention", [True]),
+                "attention_num_heads": hp.quniform("attention_num_heads", 1, 8, 1),
+                "attention_num_transformer_units": hp.quniform("attention_num_transformer_units", 1, 1, 1),
 
-    #config['epochs']=100
+            }
+        )
 
+    if fc:
+        hyperopt_space.update(
+            {
+                "fcnet_hiddens": hp.choice("fcnet_hiddens", [[64], [64, 32], [64, 16, 32], [128, 64, 16, 32]]),
 
+            }
+        )
+
+    hyperopt_alg = HyperOptSearch(space=hyperopt_space, metric="custom_metrics/num_conflicts_mean", mode="min")
+    # hyperopt_alg = ConcurrencyLimiter(hyperopt_alg, max_concurrent=2)
     ##########################
     #   Define tune loggers
     ##########################
@@ -90,6 +118,18 @@ if __name__ == '__main__':
     )
 
     callbakcs.append(wandb)
+
+    ##########################
+    #  Early stopping
+    ##########################
+    asha_scheduler = ASHAScheduler(
+        time_attr='training_iteration',
+        metric='custom_metrics/num_conflicts_mean',
+        mode='min',
+        max_t=100,
+        grace_period=10,
+        reduction_factor=3,
+        brackets=1)
 
     ##########################
     #   Start Training
@@ -107,5 +147,6 @@ if __name__ == '__main__':
         # a very useful trick! this will resume from the last run specified by
         # sync_config (if one exists), otherwise it will start a new tuning run
         resume=args.resume,
-        progress_reporter=CLIReporter()
+        progress_reporter=CLIReporter(),
+        scheduler=asha_scheduler,
     )
