@@ -63,17 +63,17 @@ if __name__ == '__main__':
     config['batch_mode'] = tune.grid_search(["truncate_episodes", "complete_episodes"])
 
     # Model LSTM
-    config['model']['use_lstm'] = tune.grid_search([True, False])
-    config['model']['lstm_use_prev_action'] = tune.grid_search([True, False])
-    config['model']['lstm_use_prev_reward'] = tune.grid_search([True, False])
+    # config['model']['use_lstm'] = tune.grid_search([True, False])
+    # config['model']['lstm_use_prev_action'] = tune.grid_search([True, False])
+    # config['model']['lstm_use_prev_reward'] = tune.grid_search([True, False])
 
     # Model Attention
-    config['model']['use_attention'] = tune.grid_search([True, False])
-    config['model']['attention_num_heads'] = tune.grid_search([1,4,8])
-    config['model']['attention_num_transformer_units'] = tune.grid_search([1, 2])
-    config['model']['use_attention'] = tune.grid_search([True, False])
+    # config['model']['use_attention'] = tune.grid_search([True, False])
+    # config['model']['attention_num_heads'] = tune.grid_search([1,4,8])
+    # config['model']['attention_num_transformer_units'] = tune.grid_search([1, 2])
+    # config['model']['use_attention'] = tune.grid_search([True, False])
 
-    config['epochs']=100
+    #config['epochs']=100
 
 
     ##########################

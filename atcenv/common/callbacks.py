@@ -120,12 +120,4 @@ class MediaWandbLogger(WandbLoggerCallback):
         # empty video dir
         [os.unlink(x) for x in files]
 
-        ##############################
-        #   histograms
-        ###############################
-
-        action_track = result['hist_stats']['actions_track']
-        action_track = [x for sub in action_track for x in sub]
-        result['hist_stats']['actions_track'] = wandb.Histogram(action_track)
-
         self._trial_queues[trial].put(result)
