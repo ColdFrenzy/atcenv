@@ -1,6 +1,7 @@
 import ray as ray
 from hyperopt import hp
 from ray import tune
+from ray.rllib.agents.ppo import ppo
 from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler
 from ray.tune.suggest.hyperopt import HyperOptSearch
@@ -57,13 +58,13 @@ if __name__ == '__main__':
     ########################
     # Step 1: Specify the search space
 
-    ppo = False
+    ppo_ = False
     lstm = False
     attention = False
     fc = False
     hyperopt_space = {}
 
-    if ppo:
+    if ppo_:
         hyperopt_space.update(
             {
                 # PPO
