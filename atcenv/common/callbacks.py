@@ -79,10 +79,8 @@ class MyCallbacks(DefaultCallbacks):
             np.asarray(speed_diff).mean())
         episode.custom_metrics["actions_accel"] = np.asarray(
             env.logging_actions['accel']).mean()
-        # bin error gave an error if we have negative values and the track
-        # actions may have them
-        # episode.custom_metrics["actions_track"] = float(
-        #     np.bincount(env.logging_actions['track']).argmax())
+        episode.custom_metrics["actions_track"] = float(
+            np.bincount(env.logging_actions['track']).argmax())
         episode.custom_metrics["non_zero_obs"] = float(
             np.asarray(env.logging_obs['non_zero']).mean())
         #episode.hist_data["actions_track"] = env.logging_actions['track']
