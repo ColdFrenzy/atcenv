@@ -4,6 +4,7 @@ from jsonargparse import ActionConfigFile
 from jsonargparse import ArgumentParser
 
 from atcenv.envs import FlightEnv
+from atcenv.envs import CurriculumFlightEnv
 
 
 def parse_args():
@@ -24,7 +25,8 @@ def parse_args():
     parser.add_argument('--config', action=ActionConfigFile)
     parser.add_argument('-debug', action="store_true")
     parser.add_argument('-cur_dir', default=os.getcwd())
-    parser.add_class_arguments(FlightEnv, 'env')
+    # parser.add_class_arguments(FlightEnv, 'env')
+    parser.add_class_arguments(CurriculumFlightEnv, 'env')
 
     # parse arguments
     args = parser.parse_args()

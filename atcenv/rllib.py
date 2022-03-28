@@ -23,7 +23,7 @@ if __name__ == '__main__':
     ray.init(local_mode=True if args.debug else False,
              num_gpus=0 if args.debug else args.num_gpus,
              num_cpus=2 if args.debug else args.num_cpus,
-             log_to_driver=False,  # args.debug,
+             log_to_driver=args.debug,
              )
     env_cls = get_env_cls()
 

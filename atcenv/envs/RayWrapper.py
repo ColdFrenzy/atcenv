@@ -13,13 +13,15 @@ class RayWrapper(CurriculumFlightEnv):
         Init used for ray support
         """
         super().__init__(env_context)
+        self.num_flights
 
-        if 'env_config' in env_context.keys():
-            num_flights = env_context['env_config']['num_flights']
-        else:
-            num_flights = env_context['num_flights']
+        # if 'env_config' in env_context.keys():
+        #     num_flights = env_context['env_config']['num_flights']
+        # else:
+        #     num_flights = env_context['num_flights']
 
-        self._agent_ids = [idx for idx in range(num_flights)]
+        # self._agent_ids = [idx for idx in range(num_flights)]
+        self._agent_ids = [idx for idx in range(self.num_flights)]
         # define spaces
         self.observation_space = gym.spaces.Dict({
             "velocity": gym.spaces.Box(low=0, high=1, shape=(1,)),
@@ -56,4 +58,6 @@ class RayWrapper(CurriculumFlightEnv):
     def reset(self) -> Dict:
         # empty the done list
         self.done_ids = []
-        return super(RayWrapper, self).reset()
+        obs = super(RayWrapper, self).reset()
+        self._agent_ids = [idx for idx in range(self.num_flights)]
+        return obs

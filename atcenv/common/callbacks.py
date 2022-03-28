@@ -194,15 +194,14 @@ class MediaWandbLogger(WandbLoggerCallback):
             self.video_dir) if isfile(join(self.video_dir, f))]
 
         media = [x for x in files if "mp4" in x]
-        if len(media) != 0:
-            media = sorted(media)[-2]
-            files.pop(files.index(media))
+        media = sorted(media)[-2]
+        files.pop(files.index(media))
 
-            # get the most recent one and log it
-            result["evaluation"]['episode_media'] = {
-                "behaviour": wandb.Video(media, format="mp4")}
+        # get the most recent one and log it
+        result["evaluation"]['episode_media'] = {
+            "behaviour": wandb.Video(media, format="mp4")}
 
         # empty video dir
-        [os.unlink(x) for x in files]
+        # [os.unlink(x) for x in files]
 
         self._trial_queues[trial].put(result)
