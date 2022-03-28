@@ -2,12 +2,13 @@
 Environment module
 """
 from copy import copy
-from typing import Dict, List
+from typing import DefaultDict, Dict, List
 
 import numpy as np
 import pygame
 import itertools as it
 from pygame import gfxdraw
+from collections import defaultdict
 from ray.rllib import MultiAgentEnv
 from shapely.geometry import LineString, MultiPoint
 from shapely.ops import nearest_points
@@ -61,7 +62,8 @@ class FlightEnv(MultiAgentEnv):
                  max_agent_seen: Optional[int] = 3,
                  wind_speed: Optional[float] = 0,
                  wind_dir: Optional[str] = 'NW3',
-                 **kwargs):
+                 reward_as_dict: Optional[bool] = False,
+                 ** kwargs):
         """
         Initialise the environment.
 
@@ -80,6 +82,7 @@ class FlightEnv(MultiAgentEnv):
         :param max_agent_seen: maximum number of closest agents to consider in the partial observation
         :param wind_speed: wind speed (in kt)
         :param wind_dir: cardinal direction of the wind 
+        :param reward_as_dict: if True, the reward is returned as a dict of the individual reward components. Useful for debug
         """
         self.num_flights = num_flights
         self.max_area = max_area * (u.nm ** 2)
@@ -93,6 +96,7 @@ class FlightEnv(MultiAgentEnv):
         self.dt = dt
         self.wind_speed = wind_speed * u.kt
         self.wind_dir = wind_dir
+        self.reward_as_dict = reward_as_dict
 
         # tolerance to consider that the target has been reached (in meters)
         self.tol = self.max_speed * 1.05 * self.dt
@@ -202,27 +206,46 @@ class FlightEnv(MultiAgentEnv):
             return False
         # WEIGHTS OF THE REWARDS
         collision_weight = -1.0
-        dist_weight = - 1.0
+        dist_weight = 0.0  # - 1.0
         target_reached_w = + 1.0
-        accelleration_penalty_w = - 0.1
-        distance_from_optimal_trajectory_w = - 0.01
-        changed_angle_penalty_w = - 0.01
-        rews = {k: 0 for k in self.flights.keys()}
+        # TODO: substitute accelleration_penalty with action masking
+        accelleration_penalty_w = 0.0  # - 0.1
+        distance_from_optimal_trajectory_w = 0.0  # - 0.01
+        changed_angle_penalty_w = 0.0  # - 0.01
+        if self.reward_as_dict:
+            rews = {k: defaultdict(float) for k in self.flights.keys()}
+        else:
+            rews = {k: 0 for k in self.flights.keys()}
 
         for f_id, flight in self.flights.items():
-            rews[f_id] += target_dist(flight) * dist_weight
-            rews[f_id] += self.accelleration_penalty[f_id] * \
-                accelleration_penalty_w
-            rews[f_id] += flight.distance_from_optimal_trajectory * \
-                distance_from_optimal_trajectory_w
-            rews[f_id] += self.changed_angle_penalty[f_id] * \
-                changed_angle_penalty_w
-            if target_reached(flight):
-                rews[f_id] += target_reached_w
+            if self.reward_as_dict:
+                rews[f_id]["distance_from_target_rew"] += target_dist(
+                    flight) * dist_weight
+                rews[f_id]["accelleration_rew"] += self.accelleration_penalty[f_id] * \
+                    accelleration_penalty_w
+                rews[f_id]["distance_from_traj_rew"] += flight.distance_from_optimal_trajectory * \
+                    distance_from_optimal_trajectory_w
+                rews[f_id]["angle_changed_rew"] += self.changed_angle_penalty[f_id] * \
+                    changed_angle_penalty_w
+                if target_reached(flight):
+                    rews[f_id]["target_reached_rew"] += target_reached_w
+            else:
+                rews[f_id] += target_dist(flight) * dist_weight
+                rews[f_id] += self.accelleration_penalty[f_id] * \
+                    accelleration_penalty_w
+                rews[f_id] += flight.distance_from_optimal_trajectory * \
+                    distance_from_optimal_trajectory_w
+                rews[f_id] += self.changed_angle_penalty[f_id] * \
+                    changed_angle_penalty_w
+                if target_reached(flight):
+                    rews[f_id] += target_reached_w
 
         # collision penalty
         for c in self.conflicts:
-            rews[c] += collision_weight
+            if self.reward_as_dict:
+                rews[c]["collision_rew"] += collision_weight
+            else:
+                rews[c] += collision_weight
 
         return rews
 
@@ -314,10 +337,10 @@ class FlightEnv(MultiAgentEnv):
             observations[i]['distance_from_target'] = np.asarray([d])
             # The mask removes angle actions if there is no Flight in the FOV
             observations[i]['action_mask'] = np.ones(len(self.action_list))
-            if np.count_nonzero(obs) == 0:
-                for j in range(len(self.action_list)):
-                    if self.action_list[j][0] != 0.0:
-                        observations[i]["action_mask"][j] = 0.
+            # if np.count_nonzero(obs) == 0:
+            #     for j in range(len(self.action_list)):
+            #         if self.action_list[j][0] != 0.0:
+            #             observations[i]["action_mask"][j] = 0.
 
         return observations
 

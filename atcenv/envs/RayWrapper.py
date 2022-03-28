@@ -3,15 +3,16 @@ from typing import Dict, Tuple
 import gym
 
 from atcenv.envs.FlightEnv import FlightEnv
+from atcenv.envs.CurriculumFlightEnv import CurriculumFlightEnv
 
 
-class RayWrapper(FlightEnv):
+class RayWrapper(CurriculumFlightEnv):
 
     def __init__(self, env_context, **kwargs):
         """
         Init used for ray support
         """
-        super().__init__(**env_context)
+        super().__init__(env_context)
 
         if 'env_config' in env_context.keys():
             num_flights = env_context['env_config']['num_flights']
