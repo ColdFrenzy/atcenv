@@ -17,14 +17,21 @@ class CurriculumFlightEnv(MultiAgentEnv):  # , TaskSettableEnv):
     metadata = {'render.modes': ['rgb_array']}
 
     def __init__(self, config: EnvContext = None, max_episode_len: Optional[int] = 300):
-        self.LEVELS = [{"min_area": 50 * 50, "max_area": 100*100, "num_flights": 3},
-                       {"min_area": 80 * 80, "max_area": 120*120, "num_flights": 4},
-                       {"min_area": 100 * 100, "max_area": 140*140, "num_flights": 5},
-                       {"min_area": 110 * 110, "max_area": 160*160, "num_flights": 6},
-                       {"min_area": 115 * 115, "max_area": 170*170, "num_flights": 7},
-                       {"min_area": 120 * 120, "max_area": 180*180, "num_flights": 8},
-                       {"min_area": 125 * 125, "max_area": 200*200, "num_flights": 9},
-                       {"min_area": 125 * 125, "max_area": 200*200, "num_flights": 10}
+        self.LEVELS = [{"min_area": 50 * 50, "max_area": 100*100, "num_flights": 3, "min_distance": 20},
+                       {"min_area": 80 * 80, "max_area": 120*120,
+                           "num_flights": 4, "min_distance": 20},
+                       {"min_area": 100 * 100, "max_area": 140*140,
+                           "num_flights": 5, "min_distance": 15},
+                       {"min_area": 110 * 110, "max_area": 160*160,
+                           "num_flights": 6, "min_distance": 15},
+                       {"min_area": 115 * 115, "max_area": 170*170,
+                           "num_flights": 7, "min_distance": 10},
+                       {"min_area": 120 * 120, "max_area": 180*180,
+                           "num_flights": 8, "min_distance": 10},
+                       {"min_area": 125 * 125, "max_area": 200*200,
+                           "num_flights": 9, "min_distance": 5},
+                       {"min_area": 125 * 125, "max_area": 200*200,
+                           "num_flights": 10, "min_distance": 5}
                        ]
         self.cur_level = 1
         self.flight_env = None

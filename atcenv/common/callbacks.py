@@ -202,6 +202,6 @@ class MediaWandbLogger(WandbLoggerCallback):
             "behaviour": wandb.Video(media, format="mp4")}
 
         # empty video dir
-        # [os.unlink(x) for x in files]
+        [os.unlink(x) for x in files]
 
         self._trial_queues[trial].put(result)

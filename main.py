@@ -40,7 +40,8 @@ if __name__ == "__main__":
     env.screen_size = 600
     obs = env.reset()
 
-    random_policy = random_action(env.flights.keys(), env.action_space)
+    random_policy = random_action(
+        env.flight_env.flights.keys(), env.action_space)
 
     # run episodes
     for e in tqdm(range(args.episodes)):
@@ -57,18 +58,20 @@ if __name__ == "__main__":
             # for i in range(100):
             # perform step with dummy action
             obs, rew, done, info = env.step(random_policy())
-            rews[0]["distance_from_target_rew"] += rew[0]["distance_from_target_rew"]
-            rews[0]["accelleration_rew"] += rew[0]["accelleration_rew"]
-            rews[0]["distance_from_traj_rew"] += rew[0]["distance_from_traj_rew"]
-            rews[0]["angle_changed_rew"] += rew[0]["angle_changed_rew"]
-            rews[0]["target_reached_rew"] += rew[0]["target_reached_rew"]
-            print(f"Episode {e}, step {counter} rewards for agent 0:")
-            print(f"distance from target: {rew[0]['distance_from_target_rew']}\naccelleration reward: {rew[0]['accelleration_rew']}\ndistance from trajectory: {rew[0]['distance_from_traj_rew']}\nangle changed reward: {rew[0]['angle_changed_rew']}\ntarget reached reward: {rew[0]['target_reached_rew']}\n")
+            # rews[0]["distance_from_target_rew"] += rew[0]["distance_from_target_rew"]
+            # rews[0]["accelleration_rew"] += rew[0]["accelleration_rew"]
+            # rews[0]["distance_from_traj_rew"] += rew[0]["distance_from_traj_rew"]
+            # rews[0]["angle_changed_rew"] += rew[0]["angle_changed_rew"]
+            # rews[0]["target_reached_rew"] += rew[0]["target_reached_rew"]
+            # print(f"Episode {e}, step {counter} rewards for agent 0:")
+            # print(f"distance from target: {rew[0]['distance_from_target_rew']}\naccelleration reward: {rew[0]['accelleration_rew']}\ndistance from trajectory: {rew[0]['distance_from_traj_rew']}\nangle changed reward: {rew[0]['angle_changed_rew']}\ntarget reached reward: {rew[0]['target_reached_rew']}\n")
+            print(f"Episode {e}, step {counter} rewards: {rew}")
+            print(f"Episode {e}, step {counter} done info: {done}")
             counter += 1
             env.render(mode="human")
             # rews += sum(rew.values())/len(rew.keys())
             time.sleep(0.05)
 
         # close rendering
-        print(rews/100)
+        # print(rews/100)
     env.close()

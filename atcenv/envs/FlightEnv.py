@@ -211,6 +211,7 @@ class FlightEnv(MultiAgentEnv):
         # TODO: substitute accelleration_penalty with action masking
         accelleration_penalty_w = 0.0  # - 0.1
         distance_from_optimal_trajectory_w = 0.0  # - 0.01
+        drift_penalty_w = - 1
         changed_angle_penalty_w = 0.0  # - 0.01
         if self.reward_as_dict:
             rews = {k: defaultdict(float) for k in self.flights.keys()}
@@ -237,6 +238,8 @@ class FlightEnv(MultiAgentEnv):
                     distance_from_optimal_trajectory_w
                 rews[f_id] += self.changed_angle_penalty[f_id] * \
                     changed_angle_penalty_w
+                rews[f_id] += min_max_normalizer(flight.drift, -
+                                                 math.pi, math.pi) * drift_penalty_w
                 if target_reached(flight):
                     rews[f_id] += target_reached_w
 
