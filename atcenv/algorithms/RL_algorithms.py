@@ -1,6 +1,6 @@
 import numpy as np
-from typing import Optional
-
+import copy
+from typing import Optional 
 
 class RL_algorithms:
     def __init__(
@@ -18,12 +18,9 @@ class RL_algorithms:
             epsilon_decrement: Optional[float] = 0.999,
             epsilon_min: Optional[float] = 0.01,
             epsilon_min2: Optional[float] = 0.1,
-            max_value_for_Rmax: Optional[float] = 100.0,
             lam: Optional[float] = 0.9,
-            q_learning: Optional[bool] = True,
-            sarsa: Optional[bool] = False,
-            sarsa_lambda: Optional[bool] = False,
-            q_learning_lambda: Optional[bool] = False
+            alg: Optional[str] = 'SARSAL',
+            q_init: Optional[str] = 'zero'
 
     ):
         """
@@ -34,14 +31,16 @@ class RL_algorithms:
         :param action_max_val: max_value that an elemten of the actions may have (e.g. if action_value = 3 then a single action element should have a value between 0 and 3)
         :param num_agents: number of agents in the environment. This parameter is important only if shared_parameters==False
         :param share_parameters: if True, it uses a single Q-table for all the agents
-        :param learning_rate:
-        :param gamma: discount factor
-        :param epsilon:
+        :param learning_rate: select the learning rate value
+        :param gamma: selecte the discount factor value
+        :param epsilon: select epsilon value for 'exploration' phase
         :param epsilon_decr:
         :param epsilon_decrement:
         :param epsilon_min:
         :param epsilon_min2:
-        :param max_value_for_Rmax:
+        :param lam: lambda value
+        :param alg: algorithm to use
+        :param q_init: Q-Table and E-Table (if any) initialization ('zero' or 'rand')
         """
         self.state_space_size = state_space_size
         self.action_space_size = action_space_size
@@ -56,35 +55,54 @@ class RL_algorithms:
         self.epsilon_decrement = epsilon_decrement
         self.epsilon_min = epsilon_min
         self.epsilon_min2 = epsilon_min2
-        self.max_value_for_Rmax = max_value_for_Rmax
         self.lam = lam
-        self.q_learning = q_learning
-        self.sarsa = sarsa
-        self.sarsa_lambda = sarsa_lambda
-        self.q_learning_lambda = q_learning_lambda
+        self.algs = ['QL', 'SARSA', 'QLL', 'SARSAL']
+        self.alg = alg
+        self.alg_check()
+        self.q_init = q_init
+        self.q_table, self.e_table = self.tables_init()
 
-
+    def tables_init(self):
+        """
+        Initialize Q-Table and E-Table (if any)
+        """
+        assert self.q_init=='zero' or self.q_init=='rand', 'Invalid parameter for Q-Table initialization!'
+        q_table = np.empty(shape=0)
+        e_table = np.empty(shape=0)
         if self.share_parameters:
-            self.q_table = np.zeros(
-                shape=(self.state_space_size, self.action_space_size),
-                dtype='float32')
-            if self.sarsa_lambda or self.q_learning_lambda:
-                self.e_table = np.zeros(
+            # Zero initialization
+            if self.q_init=='zero':
+                q_table = np.zeros(
                     shape=(self.state_space_size, self.action_space_size),
                     dtype='float32')
+            # Random initialization
+            elif self.q_init=='rand':
+                q_table = np.random.rand(self.state_space_size, self.action_space_size)
+            if self.alg=='SARSAL' or self.alg=='QLL':
+                # E-Table initialized with the same values of the Q-Table
+                e_table = copy.deepcopy(q_table)
             else:
                 pass
         else:
             print("Number of agents: ", self.num_agents)
-            self.q_table = np.zeros(shape=(
-                self.num_agents, self.state_space_size, self.action_space_size),
-                dtype='float32')
-            if self.sarsa_lambda or self.q_learning_lambda:
-                self.e_table = np.zeros(shape=(
+            if self.q_init=='zero':
+                q_table = np.zeros(shape=(
                     self.num_agents, self.state_space_size, self.action_space_size),
                     dtype='float32')
+            elif self.q_init=='rand':
+                q_table = np.random.rand(self.num_agents, self.state_space_size, self.action_space_size, dtype='float32')
+            if self.alg=='SARSAL' or self.alg=='QLL':
+                e_table = copy.deepcopy(q_table)
             else:
                 pass
+
+        return q_table, e_table
+
+    def alg_check(self):
+        """
+        Check on selected algorithm
+        """
+        assert self.alg in self.algs, 'Invalid selected algorithm! Choose between ' + str(self.algs)
 
     def update(self, state, state2, reward, action, action2, agent_indx: Optional[int] = None):
         """update the Q-table
@@ -106,19 +124,16 @@ class RL_algorithms:
         state2_indx = self.get_state_indx(state2)
         action2_indx = self.get_action_indx(action2)
 
-        if self.q_learning:
+        if self.alg=='QL':
             self.update_qlearning(state1_indx, state2_indx, reward, action1_indx, self.q_table, self.share_parameters)
-        elif self.sarsa:
+        elif self.alg=='SARSA':
             self.update_sarsa(state1_indx, state2_indx, reward, action1_indx, action2_indx, self.q_table, self.share_parameters)
-        elif self.sarsa_lambda:
+        elif self.alg=='SARSAL':
             self.update_sarsa_lambda(state1_indx, state2_indx, reward, action1_indx, action2_indx, self.state_space_size, self.action_space_size, self.q_table,
                         self.e_table, self.share_parameters)
-        elif self.q_learning_lambda:
+        elif self.alg=='QLL':
             self.update_qlearning_lambda(state1_indx, state2_indx, reward, action1_indx, action2_indx, self.state_space_size, self.action_space_size, self.q_table,
                             self.e_table, self.share_parameters)
-        else:
-            assert False, "Invalid algorithm selection."
-
 
     def update_qlearning_lambda(self, state1_indx, state2_indx, reward, action1_indx, action2_indx, len_states, len_actions, q_matrix,
                                 e_matrix, share_parameters, agent_indx: Optional[int] = None):
