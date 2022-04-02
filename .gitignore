@@ -154,3 +154,18 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 .idea/
+
+atcenv/wandb/
+
+wandb/
+
+videos/
+
+atcenv/videos/
+
+atcenv/videos_for_presentation/
+
+atcenv/modifiche_rllib.txt
+
+atcenv/log_dir/
+.vscode/launch.json
