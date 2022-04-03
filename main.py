@@ -59,7 +59,6 @@ if __name__ == "__main__":
             # perform step with dummy action
             obs, rew, done, info = env.step(random_policy())
             # rews[0]["distance_from_target_rew"] += rew[0]["distance_from_target_rew"]
-            # rews[0]["accelleration_rew"] += rew[0]["accelleration_rew"]
             # rews[0]["distance_from_traj_rew"] += rew[0]["distance_from_traj_rew"]
             # rews[0]["angle_changed_rew"] += rew[0]["angle_changed_rew"]
             # rews[0]["target_reached_rew"] += rew[0]["target_reached_rew"]

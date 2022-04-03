@@ -99,7 +99,7 @@ def model_configs(args):
 
             # === Options for custom models ===
             # Name of a custom model to use
-            "custom_model": "flight_model_mask",
+            "custom_model":  "flight_rnn_model_mask",  # "flight_model_mask",
             # Extra options to pass to the custom classes. These will be available to
             # the Model's constructor in the model_config field. Also, they will be
             # attempted to be passed as **kwargs to ModelV2 models. For an example,
@@ -198,7 +198,7 @@ def resources_configs(args):
 def eval_configs(args):
     configs = {
         # Evaluate once per training iteration.
-        "evaluation_interval": 1,
+        "evaluation_interval": 5,
         # Run evaluation on (at least) two episodes
         "evaluation_duration": 1,
         # ... using one evaluation worker (setting this to 0 will cause
