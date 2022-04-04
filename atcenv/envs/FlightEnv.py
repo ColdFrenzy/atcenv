@@ -457,11 +457,11 @@ class FlightEnv(MultiAgentEnv):
         for i, f in self.flights.items():
             if not self.done[i]:
                 distance = f.position.distance(f.target)
-                if self.stop_when_ouside:
+                if distance < self.tol:
+                    self.done[i] = True
+                elif self.stop_when_ouside:
                     if distance > self.max_distance_from_target and not self.airspace.polygon.contains(f.position):
                         self.done[i] = True
-                elif distance < self.tol:
-                    self.done[i] = True
                 # we also stop it when the Flight is outside the Airspace and it's distant from the target
 
     def update_positions(self) -> None:

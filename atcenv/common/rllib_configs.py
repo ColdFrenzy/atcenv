@@ -1,3 +1,6 @@
+from atcenv.common.custom_eval import CurriculumCustomEval
+
+
 def model_configs(args):
     configs = {
         "model": {
@@ -220,6 +223,7 @@ def eval_configs(args):
             # env and only the 1st sub-env in a vectorized env.
             "render_env": False,
         },
+        "custom_eval_function": CurriculumCustomEval,
     }
 
     return configs

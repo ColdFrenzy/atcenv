@@ -25,6 +25,11 @@ if __name__ == '__main__':
              num_cpus=2 if args.debug else args.num_cpus,
              log_to_driver=args.debug,
              )
+    # ray.init(local_mode=False,
+    #          num_gpus=0,
+    #          num_cpus=6,
+    #          log_to_driver=False,
+    #          )
     env_cls = get_env_cls()
 
     config = {
