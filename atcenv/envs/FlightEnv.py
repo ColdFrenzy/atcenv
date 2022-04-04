@@ -64,6 +64,8 @@ class FlightEnv(MultiAgentEnv):
                  wind_dir: Optional[str] = 'NW3',
                  reward_as_dict: Optional[bool] = False,
                  screen_size=600,
+                 stop_when_outside=True,
+                 max_distance_from_target=10,
                  ** kwargs):
         """
         Initialise the environment.
@@ -84,6 +86,9 @@ class FlightEnv(MultiAgentEnv):
         :param wind_speed: wind speed (in kt)
         :param wind_dir: cardinal direction of the wind 
         :param reward_as_dict: if True, the reward is returned as a dict of the individual reward components. Useful for debug
+        :param screen_size: size of the screen 
+        :param stop_when_outside: if True, agent is done when outside the Airspace and when its distance from target is > max_distance_from_target
+        :param max_distance_from_target: only considered when stop_when_outside is True
         """
         self.num_flights = num_flights
         self.max_area = max_area * (u.nm ** 2)
@@ -98,6 +103,8 @@ class FlightEnv(MultiAgentEnv):
         self.wind_speed = wind_speed * u.kt
         self.wind_dir = wind_dir
         self.reward_as_dict = reward_as_dict
+        self.stop_when_ouside = stop_when_outside
+        self.max_distance_from_target = max_distance_from_target * u.nm
 
         # tolerance to consider that the target has been reached (in meters)
         self.tol = self.max_speed * 1.05 * self.dt
@@ -138,8 +145,8 @@ class FlightEnv(MultiAgentEnv):
         ##########################################################
         # RDC: here you should implement your resolution actions
         ##########################################################
-        self.accelleration_penalty = {k: 0 for k in self.flights.keys()}
         self.changed_angle_penalty = {k: 0 for k in self.flights.keys()}
+        self.accelleration_penalty = {k: 0 for k in self.flights.keys()}
         for f_id, action in actions.items():
             f = self.flights[f_id]
             actual_action = self.action_list[action]
@@ -147,6 +154,7 @@ class FlightEnv(MultiAgentEnv):
                 self.changed_angle_penalty[f_id] = 1.0
             f.track += actual_action[0]
             # change airspeed only if the new airspeed is the [self.min_speed, self.max_speed] range
+            # this is not needed since invalid accellerations is already masked out
             if self.min_speed <= f.airspeed + actual_action[1]*self.dt <= self.max_speed:
                 f.airspeed += actual_action[1]
             else:
@@ -208,9 +216,7 @@ class FlightEnv(MultiAgentEnv):
         # WEIGHTS OF THE REWARDS
         collision_weight = -1.0
         dist_weight = 0.0  # - 1.0
-        target_reached_w = + 1.0
-        # TODO: substitute accelleration_penalty with action masking
-        accelleration_penalty_w = 0.0  # - 0.1
+        target_reached_w = + 200.0
         distance_from_optimal_trajectory_w = 0.0  # - 0.01
         drift_penalty_w = - 1
         changed_angle_penalty_w = 0.0  # - 0.01
@@ -223,8 +229,6 @@ class FlightEnv(MultiAgentEnv):
             if self.reward_as_dict:
                 rews[f_id]["distance_from_target_rew"] += target_dist(
                     flight) * dist_weight
-                rews[f_id]["accelleration_rew"] += self.accelleration_penalty[f_id] * \
-                    accelleration_penalty_w
                 rews[f_id]["distance_from_traj_rew"] += flight.distance_from_optimal_trajectory * \
                     distance_from_optimal_trajectory_w
                 rews[f_id]["angle_changed_rew"] += self.changed_angle_penalty[f_id] * \
@@ -233,8 +237,6 @@ class FlightEnv(MultiAgentEnv):
                     rews[f_id]["target_reached_rew"] += target_reached_w
             else:
                 rews[f_id] += target_dist(flight) * dist_weight
-                rews[f_id] += self.accelleration_penalty[f_id] * \
-                    accelleration_penalty_w
                 rews[f_id] += flight.distance_from_optimal_trajectory * \
                     distance_from_optimal_trajectory_w
                 rews[f_id] += self.changed_angle_penalty[f_id] * \
@@ -455,8 +457,12 @@ class FlightEnv(MultiAgentEnv):
         for i, f in self.flights.items():
             if not self.done[i]:
                 distance = f.position.distance(f.target)
-                if distance < self.tol:
+                if self.stop_when_ouside:
+                    if distance > self.max_distance_from_target and not self.airspace.polygon.contains(f.position):
+                        self.done[i] = True
+                elif distance < self.tol:
                     self.done[i] = True
+                # we also stop it when the Flight is outside the Airspace and it's distant from the target
 
     def update_positions(self) -> None:
         """
