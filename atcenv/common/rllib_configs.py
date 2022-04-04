@@ -198,7 +198,7 @@ def resources_configs(args):
 def eval_configs(args):
     configs = {
         # Evaluate once per training iteration.
-        "evaluation_interval": 5,
+        "evaluation_interval": 1,
         # Run evaluation on (at least) two episodes
         "evaluation_duration": 1,
         # ... using one evaluation worker (setting this to 0 will cause

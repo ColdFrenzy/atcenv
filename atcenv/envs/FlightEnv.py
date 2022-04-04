@@ -63,6 +63,7 @@ class FlightEnv(MultiAgentEnv):
                  wind_speed: Optional[float] = 0,
                  wind_dir: Optional[str] = 'NW3',
                  reward_as_dict: Optional[bool] = False,
+                 screen_size=600,
                  ** kwargs):
         """
         Initialise the environment.
@@ -105,7 +106,7 @@ class FlightEnv(MultiAgentEnv):
         self.screen = None
         self.surf = None
         self.isopen = True
-        self.screen_size = 1200
+        self.screen_size = screen_size
 
         self.airspace = None
         self.flights = {}  # list of flights
@@ -238,8 +239,10 @@ class FlightEnv(MultiAgentEnv):
                     distance_from_optimal_trajectory_w
                 rews[f_id] += self.changed_angle_penalty[f_id] * \
                     changed_angle_penalty_w
-                rews[f_id] += min_max_normalizer(flight.drift, -
-                                                 math.pi, math.pi) * drift_penalty_w
+                drift_rew = min_max_normalizer(flight.drift,
+                                               0, 2*math.pi)
+                rews[f_id] += (drift_rew * drift_penalty_w) if drift_rew >= 0 else (
+                    drift_rew * -drift_penalty_w)
                 if target_reached(flight):
                     rews[f_id] += target_reached_w
 

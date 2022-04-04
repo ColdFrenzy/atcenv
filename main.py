@@ -30,19 +30,26 @@ if __name__ == "__main__":
     # parse arguments
     args = parse_args()
     # custom values for a run
-    args["episodes"] = 5
+    args["episodes"] = 1
     args.env["min_area"] = 50 * 50
     args.env["max_area"] = 100*100
     args.env["num_flights"] = 3
     args.env["reward_as_dict"] = True
     # init environment
     env = RayWrapper(vars(args.env))
-    env.screen_size = 600
+    env.flight_env.screen_size = 600
     obs = env.reset()
 
     random_policy = random_action(
         env.flight_env.flights.keys(), env.action_space)
-
+    no_move_policy = {}
+    move_left_policy = {}
+    move_right_policy = {}
+    for flight_id in env.flight_env.flights.keys():
+        # don't accellerate and don't change angle
+        no_move_policy[flight_id] = 4
+        move_left_policy[flight_id] = 1
+        move_right_policy[flight_id] = 8
     # run episodes
     for e in tqdm(range(args.episodes)):
         # reset environment
@@ -54,10 +61,11 @@ if __name__ == "__main__":
 
         # execute one episode
         counter = 0
-        while not done["__all__"]:
-            # for i in range(100):
+        # while not done["__all__"]:
+        for i in range(100):
             # perform step with dummy action
-            obs, rew, done, info = env.step(random_policy())
+            # obs, rew, done, info = env.step(random_policy())
+            obs, rew, done, info = env.step(move_right_policy)
             # rews[0]["distance_from_target_rew"] += rew[0]["distance_from_target_rew"]
             # rews[0]["distance_from_traj_rew"] += rew[0]["distance_from_traj_rew"]
             # rews[0]["angle_changed_rew"] += rew[0]["angle_changed_rew"]
@@ -70,6 +78,7 @@ if __name__ == "__main__":
             env.render(mode="human")
             # rews += sum(rew.values())/len(rew.keys())
             time.sleep(0.05)
+            # input("Press Enter")
 
         # close rendering
         # print(rews/100)

@@ -202,6 +202,9 @@ class MediaWandbLogger(WandbLoggerCallback):
             "behaviour": wandb.Video(media, format="mp4")}
 
         # empty video dir
-        [os.unlink(x) for x in files]
-
+        # check if file is used somewhere else, otherwise close it
+        try:
+            [os.unlink(x) for x in files if x]
+        except:
+            pass
         self._trial_queues[trial].put(result)

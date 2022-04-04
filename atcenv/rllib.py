@@ -13,8 +13,6 @@ from atcenv.envs import get_env_cls
 from ray.tune import CLIReporter
 
 if __name__ == '__main__':
-    # _ = FlightActionMaskModel
-    # _ = FlightActionMaskRNNModel
     args = parse_args()
 
     ##########################

@@ -55,8 +55,12 @@ def curriculum_fn(
     # If all episodes in the evaluation were able to end before the max_episode_len
     # we move to the next task
     new_task = task_settable_env.get_task()
-    if all(ep_len < env_ctx["max_episode_len"] for ep_len in train_results["evaluation"]["hist_stats"]["episode_lengths"]):
-        new_task += 1
+    if "evaluation" in train_results:
+        if all(ep_len < env_ctx["max_episode_len"] for ep_len in train_results["evaluation"]["hist_stats"]["episode_lengths"]):
+            new_task += 1
+    else:
+        if all(ep_len < env_ctx["max_episode_len"] for ep_len in train_results["hist_stats"]["episode_lengths"]):
+            new_task += 1
 
     print(
         f"Worker #{env_ctx.worker_index} vec-idx={env_ctx.vector_index}"
