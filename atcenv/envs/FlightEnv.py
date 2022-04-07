@@ -10,7 +10,7 @@ import itertools as it
 from pygame import gfxdraw
 from collections import defaultdict
 from ray.rllib import MultiAgentEnv
-from shapely.geometry import LineString, MultiPoint
+from shapely.geometry import LineString, MultiPoint, Point
 from shapely.ops import nearest_points
 
 from atcenv.common.wind_utils import abs_compass
@@ -34,8 +34,8 @@ def normalizer(maxx, minx, maxy, miny, screen_w, screen_h):
         x = np.asarray(x)
         y = np.asarray(y)
 
-        x = min_max_normalizer(x, maxx, minx) * screen_w
-        y = min_max_normalizer(y, maxy, miny) * screen_h
+        x = min_max_normalizer(x, minx, maxx) * screen_w
+        y = min_max_normalizer(y, miny, maxy) * screen_h
         if use_int:
             x = np.int64((np.floor(x)))
             y = np.int64((np.floor(y)))
@@ -103,7 +103,7 @@ class FlightEnv(MultiAgentEnv):
         self.wind_speed = wind_speed * u.kt
         self.wind_dir = wind_dir
         self.reward_as_dict = reward_as_dict
-        self.stop_when_ouside = stop_when_outside
+        self.stop_when_outside = stop_when_outside
         self.max_distance_from_target = max_distance_from_target * u.nm
 
         # tolerance to consider that the target has been reached (in meters)
@@ -132,7 +132,10 @@ class FlightEnv(MultiAgentEnv):
         self.action_list = list(it.product(
             self.yaw_angles, self.accelleration))
         # Distance between the furthest points in the airspace
+        # max distance is the true max_distance between the Airspace bounding box
         self.max_distance = None
+        # max screen distance is used for scaling the rendering
+        self.max_screen_distance = None
 
     def resolution(self, actions: Dict) -> None:
         """
@@ -153,6 +156,11 @@ class FlightEnv(MultiAgentEnv):
             if actual_action[0] != 0.0:
                 self.changed_angle_penalty[f_id] = 1.0
             f.track += actual_action[0]
+            # always keep the track between 0 and 2pi
+            if f.track < 0:
+                f.track = (f.track + u.circle) % u.circle
+            if f.track >= u.circle:
+                f.track = f.track % u.circle
             # change airspeed only if the new airspeed is the [self.min_speed, self.max_speed] range
             # this is not needed since invalid accellerations is already masked out
             if self.min_speed <= f.airspeed + actual_action[1]*self.dt <= self.max_speed:
@@ -276,6 +284,7 @@ class FlightEnv(MultiAgentEnv):
                 - bearing : float [0,1] : normalized bearing [0, 2*pi]
                 - agents_in_fov : ndarray of shape (2*max_seen_agents) range [0,1] : a vector of normalized polar
                     coordinates of agents in fov, first max_seen_agents are the angles and the last the distances
+                    if there are no flights in the fov, the values are set to -1
         """
 
         def polar_distance(f: Flight):
@@ -289,8 +298,8 @@ class FlightEnv(MultiAgentEnv):
                 dist: normalized distance (1 is max fov depth)
             """
 
-            angles = np.zeros(self.max_agent_seen, dtype=np.float32)
-            dists = np.zeros(self.max_agent_seen, dtype=np.float32)
+            angles = np.full(self.max_agent_seen, -1., dtype=np.float32)
+            dists = np.full(self.max_agent_seen, -1., dtype=np.float32)
 
             origin = f.position
             seen_agents_indices = self.flights_in_fov(i)
@@ -300,9 +309,17 @@ class FlightEnv(MultiAgentEnv):
                     for j, seen_agent_idx in enumerate(seen_agents_indices):
                         x_dist = self.flights[seen_agent_idx].position.x - origin.x
                         y_dist = self.flights[seen_agent_idx].position.y - origin.y
-                        angle = (np.arctan2(y_dist, x_dist) +
+                        # angle computed w.r.t. the north
+                        angle = (np.arctan2(x_dist, y_dist) +
                                  u.circle) % u.circle
-                        angles[j] = min_max_normalizer(angle, 0, 2 * math.pi)
+                        fov_start_angle = (
+                            (f.track - f.fov_angle/2) + u.circle) % u.circle
+                        if angle < fov_start_angle:
+                            angle += u.circle
+                        angle = angle - fov_start_angle
+                        # angle is normalized between 0 and 1, at zero we are at the beginning
+                        # of the fov (clockwise) at 1 we are at the end of the fov
+                        angles[j] = min_max_normalizer(angle, 0, f.fov_angle)
                         dists[j] = math.dist([self.flights[seen_agent_idx].position.x,
                                               self.flights[seen_agent_idx].position.y],
                                              [origin.x, origin.y]) / f.fov_depth
@@ -316,9 +333,19 @@ class FlightEnv(MultiAgentEnv):
                         nearest_agent = nearest_points(origin, seen_agents)[1]
                         x_dist = nearest_agent.x - origin.x
                         y_dist = nearest_agent.y - origin.y
-                        angle = (np.arctan2(y_dist, x_dist) +
+                        # angle between flight seen and current flight computed w.r.t. the north
+                        angle = (np.arctan2(x_dist, y_dist) +
                                  u.circle) % u.circle
-                        angles[j] = min_max_normalizer(angle, 0, 2 * math.pi)
+                        # starting angle of the current flight fov w.r.t. north
+                        fov_start_angle = (
+                            (f.track - f.fov_angle/2) + u.circle) % u.circle
+
+                        if angle < fov_start_angle:
+                            angle += u.circle
+                        angle = angle - fov_start_angle
+                        # angle is normalized between 0 and 1, at zero we are at the beginning
+                        # of the fov (clockwise) at 1 we are at the end of the
+                        angles[j] = min_max_normalizer(angle, 0, f.fov_angle)
                         dists[j] = math.dist([nearest_agent.x,
                                               nearest_agent.y],
                                              [origin.x, origin.y]) / f.fov_depth
@@ -343,9 +370,6 @@ class FlightEnv(MultiAgentEnv):
 
             assert 0 <= v <= 1, f"Airspeed is not in range [0,1]. Got '{v}'"
             assert 0 <= b <= 1, f"Bearing is not in range [0,1]. Got '{b}'"
-
-            assert all([0 <= x <= 1 for x in obs]
-                       ), f"obs is not in range [0,1]. Got '{obs}'"
 
             observations[i]['velocity'] = np.asarray([v])
             observations[i]['bearing'] = np.asarray([b])
@@ -459,10 +483,10 @@ class FlightEnv(MultiAgentEnv):
                 distance = f.position.distance(f.target)
                 if distance < self.tol:
                     self.done[i] = True
-                elif self.stop_when_ouside:
+                # we also stop it when the Flight is outside the Airspace and it's distant from the target
+                elif self.stop_when_outside:
                     if distance > self.max_distance_from_target and not self.airspace.polygon.contains(f.position):
                         self.done[i] = True
-                # we also stop it when the Flight is outside the Airspace and it's distant from the target
 
     def update_positions(self) -> None:
         """
@@ -531,41 +555,57 @@ class FlightEnv(MultiAgentEnv):
 
         return rew, obs, done, {}
 
-    def reset(self) -> Dict:
+    def reset(self, random=True) -> Dict:
         """
         Resets the environment and returns initial observation
         :return: initial observation
         """
-        # create random airspace
-        self.airspace = Airspace.random(self.min_area, self.max_area)
-        # max distance is computed as the distance between the two opposite vertices of the airspace bounding box in meters
-        self.max_distance = math.sqrt(((self.airspace.polygon.bounds[2]-self.airspace.polygon.bounds[0])**2 +
-                                       (self.airspace.polygon.bounds[3]-self.airspace.polygon.bounds[1])**2) * u.nm)
-        minx, miny, maxx, maxy = self.airspace.polygon.bounds
+        if random:
+            # create random airspace
+            self.airspace = Airspace.random(self.min_area, self.max_area)
+            # max distance inside the polygon
+            minx, miny, maxx, maxy = self.airspace.polygon.bounds
+            self.max_distance = Point(minx, miny).distance(Point(maxx, maxy))
+            # max distance inside the screen
+            minx, miny, maxx, maxy = self.airspace.polygon.buffer(
+                10 * u.nm).bounds
+            self.max_screen_distance = Point(
+                minx, miny).distance(Point(maxx, maxy))
 
-        self.scaler = normalizer(
-            maxx, minx, maxy, miny, self.screen_size, self.screen_size)
+            if abs(maxx-minx) >= abs(maxy-miny):
+                self.scaler = normalizer(
+                    maxx, minx, maxx, minx, self.screen_size, self.screen_size
+                )
+            else:
+                self.scaler = normalizer(
+                    maxy, miny, maxy, miny, self.screen_size, self.screen_size
+                )
+            # self.scaler = normalizer(
+            #     maxx, minx, maxy, miny, self.screen_size, self.screen_size)
 
-        # create random flights
-        self.flights = {}
-        tol = self.distance_init_buffer * self.tol
-        min_distance = self.distance_init_buffer * self.min_distance
+            # create random flights
+            self.flights = {}
+            tol = self.distance_init_buffer * self.tol
+            min_distance = self.distance_init_buffer * self.min_distance
 
-        idx = 0
+            idx = 0
 
-        while len(self.flights) < self.num_flights:
-            valid = True
-            candidate = Flight.random(
-                self.airspace, self.min_speed, self.max_speed, idx, tol)
+            while len(self.flights) < self.num_flights:
+                valid = True
+                candidate = Flight.random(
+                    self.airspace, self.min_speed, self.max_speed, idx, tol)
 
-            # ensure that candidate is not in conflict
-            for f in self.flights.values():
-                if candidate.position.distance(f.position) < min_distance:
-                    valid = False
-                    break
-            if valid:
-                self.flights[idx] = candidate
-                idx += 1
+                # ensure that candidate is not in conflict
+                for f in self.flights.values():
+                    if candidate.position.distance(f.position) < min_distance:
+                        valid = False
+                        break
+                if valid:
+                    self.flights[idx] = candidate
+                    idx += 1
+        else:
+            raise NotImplementedError(
+                "The deterministic env is not implemented yet")
 
         # initialise steps counter
         self.i = 0
@@ -596,16 +636,23 @@ class FlightEnv(MultiAgentEnv):
         self.surf = pygame.Surface((self.screen_size, self.screen_size))
         self.surf.fill(WHITE)
 
+        for i, f in self.flights.items():
+            if self.done[i]:
+                continue
+            # add fovs first to avoid drawing on other elements
+            xy = self.scaler(*f.fov.exterior.coords.xy)
+            xy = np.stack(xy, axis=-1)
+            pygame.draw.polygon(self.surf, points=xy, color=ORANGE, width=0)
+
         # display airspace
         xy = self.scaler(*self.airspace.polygon.boundary.coords.xy)
         xy = np.stack(xy, axis=-1)
         gfxdraw.aapolygon(self.surf, xy, BLACK)
 
         # estimate radius
-        radius = self.min_distance / 2
-        radius /= self.max_distance
+        radius = self.min_distance / 2.
+        radius /= self.max_screen_distance
         radius *= self.screen_size
-        radius = int(radius)
 
         # add current positions
         for i, f in self.flights.items():
@@ -617,14 +664,10 @@ class FlightEnv(MultiAgentEnv):
             else:
                 color = BLUE
 
-            # add fovs first to avoid drawing on other elements
-            xy = self.scaler(*f.fov.exterior.coords.xy)
-            xy = np.stack(xy, axis=-1)
-            pygame.draw.polygon(self.surf, points=xy, color=ORANGE, width=0)
-
             # add drone area
             x, y = self.scaler(f.position.x, f.position.y, use_int=True)
-            gfxdraw.circle(self.surf, x, y, radius, BLUE)
+            pygame.draw.circle(self.surf, color=color, center=(
+                x, y), radius=radius, width=1)
 
             # add plan
             plan = LineString([f.position, f.target])

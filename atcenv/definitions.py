@@ -66,6 +66,7 @@ class Flight:
         Initialises the track and the airspeed
         :return:
         """
+        # Since the track is initialized as the bearing, the track angle is also clockwise w.r.t. north
         self.track = self.bearing
         self.airspeed = self.optimal_airspeed
         self.optimal_trajectory = LineString(
@@ -75,12 +76,20 @@ class Flight:
     def bearing(self) -> float:
         """
         Bearing from current position to target
+        (clockwise angular distance between the north and the line connecting the Flight
+        current position and its destination)
         :return:
         """
+        # relative distance between target and flight
+        # w.r.t the flight's frame
         dx = self.target.x - self.position.x
         dy = self.target.y - self.position.y
-        # bussola
+        # compass=bussola
+        # north-clockwise convention (x and y swapped):
+        # https://en.wikipedia.org/wiki/Atan2#East-counterclockwise,_north-clockwise_and_south-clockwise_conventions,_etc.
         compass = math.atan2(dx, dy)
+        # map atan between [0,2pi]
+        # https://stackoverflow.com/questions/1311049/how-to-map-atan2-to-degrees-0-360
         return (compass + u.circle) % u.circle
 
     @ property
@@ -111,18 +120,16 @@ class Flight:
         # center = [self.flights[flight_id].position]
         center_x, center_y = self.position.x, self.position.y
         fov_vertices.append(Point(center_x, center_y))
-        bearing = self.track
+        track = self.track
         point_1_x = center_x + (self.fov_depth *
-                                (math.cos((math.pi - (bearing + math.pi / 2)) - self.fov_angle / 2)))
+                                (math.cos((math.pi - (track + math.pi / 2)) - self.fov_angle / 2)))
         point_1_y = center_y + (self.fov_depth *
-                                (math.sin((math.pi - (bearing + math.pi / 2)) - self.fov_angle / 2)))
+                                (math.sin((math.pi - (track + math.pi / 2)) - self.fov_angle / 2)))
         fov_vertices.append(Point(point_1_x, point_1_y))
         point_2_x = center_x + (self.fov_depth *
-                                (math.cos((math.pi - (bearing + math.pi / 2)) + self.fov_angle / 2)))
+                                (math.cos((math.pi - (track + math.pi / 2)) + self.fov_angle / 2)))
         point_2_y = center_y + (self.fov_depth *
-                                (math.sin((math.pi - (bearing + math.pi / 2)) + self.fov_angle / 2)))
-        # point_2 = depth*((math.cos(self.flights[flight_id].bearing + angle/2))**2 + (
-        #     math.sin(self.flights[flight_id].bearing + angle/2))**2)
+                                (math.sin((math.pi - (track + math.pi / 2)) + self.fov_angle / 2)))
         fov_vertices.append(Point(point_2_x, point_2_y))
 
         ##########################################################

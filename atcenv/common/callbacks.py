@@ -150,6 +150,7 @@ class CurriculumCallbacks(DefaultCallbacks):
         env = base_env.envs[0]
 
         flights = list(env.flight_env.flights.values())
+        level = env.cur_level
 
         speed_diff = [abs(f.optimal_airspeed - f.airspeed) for f in flights]
 
@@ -162,6 +163,7 @@ class CurriculumCallbacks(DefaultCallbacks):
             np.bincount(env.logging_actions['track']).argmax())
         episode.custom_metrics["non_zero_obs"] = float(
             np.asarray(env.logging_obs['non_zero']).mean())
+        episode.custom_metrics["Current_difficulty_level"] = level
         #episode.hist_data["actions_track"] = env.logging_actions['track']
 
         # get all the agents that reached the target

@@ -222,8 +222,14 @@ def eval_configs(args):
             # Note that this will always only render the 1st RolloutWorker's
             # env and only the 1st sub-env in a vectorized env.
             "render_env": False,
+            "env_config": {
+                "config": None,
+                "max_episode_len": 300,
+                "stop_when_outside": False,
+                "in_eval": True,
+            }
         },
-        "custom_eval_function": CurriculumCustomEval,
+        # "custom_eval_function": CurriculumCustomEval,  # TODO: unconmment when it works
     }
 
     return configs

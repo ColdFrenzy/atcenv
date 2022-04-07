@@ -7,6 +7,7 @@ from tqdm import tqdm
 import time
 from atcenv.common.utils import parse_args
 import random
+import math
 
 from atcenv.envs import FlightEnv, RayWrapper
 
@@ -63,6 +64,11 @@ if __name__ == "__main__":
         # execute one episode
         counter = 0
         # while not done["__all__"]:
+        env.flight_env.flights[0].position._set_coords(0., 0.)
+        env.flight_env.flights[1].position._set_coords(15000., 15000.)
+        env.flight_env.flights[1].track = math.pi/2
+        env.flight_env.flights[2].position._set_coords(80000., 15000.)
+        env.flight_env.flights[2].track = -math.pi/2
         for i in range(100):
             # perform step with dummy action
             # obs, rew, done, info = env.step(random_policy())
