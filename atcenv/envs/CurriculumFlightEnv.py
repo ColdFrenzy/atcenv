@@ -17,7 +17,7 @@ class CurriculumFlightEnv(MultiAgentEnv):  # , TaskSettableEnv):
     metadata = {'render.modes': ['rgb_array']}
 
     def __init__(self, config: EnvContext = None, max_episode_len: Optional[int] = 300,
-                 stop_when_outside: Optional[bool] = True, in_eval: Optional[bool] = False):
+                 stop_when_outside: Optional[bool] = True, cur_level: Optional[int] = 1):
         self.LEVELS = [{"min_area": 50 * 50, "max_area": 100*100, "num_flights": 3},
                        {"min_area": 80 * 80, "max_area": 120*120,
                            "num_flights": 4},
@@ -34,9 +34,8 @@ class CurriculumFlightEnv(MultiAgentEnv):  # , TaskSettableEnv):
                        {"min_area": 125 * 125, "max_area": 200*200,
                            "num_flights": 10}
                        ]
-        self.in_eval = in_eval
         self.max_level = len(self.LEVELS)
-        self.cur_level = 1
+        self.cur_level = cur_level
         self.stop_when_outside = stop_when_outside
         self.flight_env = None
         self._make_flight_env()  # create the flightenv

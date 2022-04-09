@@ -1,4 +1,4 @@
-from atcenv.common.custom_eval import CurriculumCustomEval
+from atcenv.common.custom_policies import NoMovePolicy
 
 
 def model_configs(args):
@@ -202,7 +202,7 @@ def resources_configs(args):
 def eval_configs(args):
     configs = {
         # Evaluate once per training iteration.
-        "evaluation_interval": 1,
+        "evaluation_interval": 0,
         # Run evaluation on (at least) two episodes
         "evaluation_duration": 1,
         # ... using one evaluation worker (setting this to 0 will cause
@@ -212,6 +212,8 @@ def eval_configs(args):
         # Special evaluation config. Keys specified here will override
         # the same keys in the main config, but only for evaluation.
         "in_evaluation": True,
+        # Choose the evaluation duration unit "episodes" or "timesteps"
+        "evaluation_duration_unit": "episodes",
         "evaluation_config": {
             # Store videos in this relative directory here inside
             # the default output dir (~/ray_results/...).
@@ -228,10 +230,8 @@ def eval_configs(args):
                 "config": None,
                 "max_episode_len": 300,
                 "stop_when_outside": False,
-                "in_eval": True,
             }
         },
-        # "custom_eval_function": CurriculumCustomEval,  # TODO: unconmment when it works
     }
 
     return configs
@@ -242,11 +242,9 @@ def multi_agent_configs(args, obs_space, action_space):
         "multiagent": {
             "policies": {
                 "default": (None, obs_space, action_space, {}),
-                "no_move": (None, obs_space, action_space, {})
-
             },
 
-            "policy_mapping_fn": lambda x: "no_move",  # set default
+            "policy_mapping_fn": lambda x: "default",  # set default
         },
     }
 
