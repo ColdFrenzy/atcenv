@@ -148,7 +148,6 @@ class CurriculumCallbacks(DefaultCallbacks):
         """
 
         env = base_env.envs[0]
-
         flights = list(env.flight_env.flights.values())
         level = env.cur_level
 
@@ -173,6 +172,17 @@ class CurriculumCallbacks(DefaultCallbacks):
         episode.custom_metrics["reached_target"] = done_ids
 
         self.num_conflicts = 0
+
+    def on_sample_end(self, *, worker: "RolloutWorker", samples: "SampleBatch", **kwargs) -> None:
+        """Called at the end of RolloutWorker.sample().
+
+        Args:
+            worker: Reference to the current rollout worker.
+            samples: Batch to be returned. You can mutate this
+                object to modify the samples generated.
+            kwargs: Forward compatibility placeholder.
+        """
+        print(worker.worker_index)
 
 
 class MediaWandbLogger(WandbLoggerCallback):

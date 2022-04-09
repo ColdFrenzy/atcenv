@@ -142,7 +142,7 @@ def ppo_configs(args):
         # Initial coefficient for KL divergence.
         "kl_coeff": 0.2,
         # Size of batches collected from each worker.
-        "rollout_fragment_length": 20 if args.debug else 200,
+        "rollout_fragment_length": 200 if args.debug else 500,
         # Number of timesteps collected for each SGD round. This defines the size
         # of each SGD epoch.
         "train_batch_size": 400 if args.debug else 4000,
@@ -180,9 +180,10 @@ def ppo_configs(args):
         # Target value for KL divergence.
         "kl_target": 0.01,
         # Whether to rollout "complete_episodes" or "truncate_episodes".
-        "batch_mode": "truncate_episodes",
+        "batch_mode": "complete_episodes",  # "truncate_episodes",
         # Which observation filter to apply to the observation.
         "observation_filter": "NoFilter",
+        "num_workers": 2 if args.debug else args.num_workers,
 
     }
 
@@ -191,7 +192,7 @@ def ppo_configs(args):
 
 def resources_configs(args):
     configs = {
-        "num_workers": 0 if args.debug else args.num_workers,
+        "num_cpus": 4 if args.debug else args.num_cpus,
         "num_gpus": 0 if args.debug else args.num_gpus,
     }
 
@@ -210,6 +211,7 @@ def eval_configs(args):
         "evaluation_num_workers": 1,
         # Special evaluation config. Keys specified here will override
         # the same keys in the main config, but only for evaluation.
+        "in_evaluation": True,
         "evaluation_config": {
             # Store videos in this relative directory here inside
             # the default output dir (~/ray_results/...).
@@ -240,10 +242,11 @@ def multi_agent_configs(args, obs_space, action_space):
         "multiagent": {
             "policies": {
                 "default": (None, obs_space, action_space, {}),
+                "no_move": (None, obs_space, action_space, {})
 
             },
 
-            "policy_mapping_fn": lambda x: "default",
+            "policy_mapping_fn": lambda x: "no_move",  # set default
         },
     }
 

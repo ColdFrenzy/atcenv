@@ -7,7 +7,7 @@ from ray.tune.integration.wandb import WandbLoggerCallback
 
 from atcenv.models.action_mask_model import FlightActionMaskModel, FlightActionMaskRNNModel
 from atcenv.common.callbacks import MyCallbacks, CurriculumCallbacks, MediaWandbLogger
-from atcenv.common.rllib_configs import multi_agent_configs, eval_configs, resources_configs, ppo_configs, model_configs
+from atcenv.common.rllib_configs import multi_agent_configs, eval_configs, ppo_configs, model_configs, resources_configs
 from atcenv.common.utils import parse_args, curriculum_fn
 from atcenv.envs import get_env_cls
 from ray.tune import CLIReporter
@@ -18,11 +18,11 @@ if __name__ == '__main__':
     ##########################
     #   Init ray with degub options
     ##########################
-
+    r_configs = resources_configs(args)
     ray.shutdown()
     ray.init(local_mode=True if args.debug else False,
-             num_gpus=0 if args.debug else args.num_gpus,
-             num_cpus=2 if args.debug else args.num_cpus,
+             num_gpus=r_configs["num_gpus"],
+             num_cpus=r_configs["num_cpus"],
              log_to_driver=args.debug,
              )
     env_cls = get_env_cls()
@@ -43,13 +43,12 @@ if __name__ == '__main__':
     ma_configs = multi_agent_configs(
         args, tmp.observation_space, tmp.action_space)
     e_configs = eval_configs(args)
-    r_configs = resources_configs(args)
     p_configs = ppo_configs(args)
     m_configs = model_configs(args)
 
     config.update(ma_configs)
     config.update(e_configs)
-    config.update(r_configs)
+    # config.update(r_configs)
     config.update(env_config)
     config.update(p_configs)
     config.update(m_configs)

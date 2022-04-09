@@ -35,7 +35,7 @@ if __name__ == "__main__":
     args["episodes"] = 1
     args.env["min_area"] = 50 * 50
     args.env["max_area"] = 100*100
-    args.env["num_flights"] = 3
+    args.env["num_flights"] = 2
     args.env["reward_as_dict"] = True
     # init environment
     env = RayWrapper(vars(args.env))
@@ -64,11 +64,10 @@ if __name__ == "__main__":
         # execute one episode
         counter = 0
         # while not done["__all__"]:
-        env.flight_env.flights[0].position._set_coords(0., 0.)
-        env.flight_env.flights[1].position._set_coords(15000., 15000.)
-        env.flight_env.flights[1].track = math.pi/2
-        env.flight_env.flights[2].position._set_coords(80000., 15000.)
-        env.flight_env.flights[2].track = -math.pi/2
+        env.flight_env.flights[0].position._set_coords(15000., 15000.)
+        env.flight_env.flights[0].track = math.pi/2
+        env.flight_env.flights[1].position._set_coords(80000., 15000.)
+        env.flight_env.flights[1].track = -math.pi/2
         for i in range(100):
             # perform step with dummy action
             # obs, rew, done, info = env.step(random_policy())
