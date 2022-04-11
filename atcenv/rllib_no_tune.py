@@ -1,8 +1,7 @@
 import ray as ray
-import wandb
-from ray import tune
-from ray.rllib.agents import ppo
-from ray.tune import CLIReporter
+import os
+from regex import W
+import torch
 from atcenv.envs.CurriculumFlightEnv import CurriculumFlightEnv
 
 from atcenv.common.wandb_callbacks import WandbCallbacks
@@ -17,7 +16,10 @@ from ray.rllib.agents.ppo import PPOTrainer
 
 if __name__ == "__main__":
     args = parse_args()
-
+    CUR_DIR = os.path.abspath(os.path.join(__file__, os.pardir))
+    WEIGHTS_DIR = os.path.join(CUR_DIR, "weights")
+    if not os.path.exists(WEIGHTS_DIR):
+        os.makedirs(WEIGHTS_DIR)
     ##########################
     #   Init ray with degub options
     ##########################
@@ -73,10 +75,9 @@ if __name__ == "__main__":
 
     trainer_obj = PPOTrainer(config=config)
     num_epochs = 1000
-    next_level = False
     wandb_watch = False
     # START TRAINING
-    for epoch in range(num_epochs):
+    for epoch in range(1, num_epochs+1):
         print(f"Epoch {epoch} of {num_epochs}")
         result = trainer_obj.train()
         default_policy = trainer_obj.get_policy("default")
@@ -95,6 +96,22 @@ if __name__ == "__main__":
             env, default_policy, config["evaluation_config"]["record_env"])
         result.update(eval_result)
         wdb_callback.log_media(result)
+        ##################################################
+        # SAVE CHECKPOINTS
+        ##################################################
+        if epoch % args.checkpoint_freq == 0:
+            print("Saving checkpoints...")
+            new_weight_file = os.path.join(
+                WEIGHTS_DIR, f"model_weights_{epoch}.pt")
+            torch.save(default_policy.model.state_dict(), new_weight_file)
+            weights_file = [os.path.join(WEIGHTS_DIR, w)
+                            for w in os.listdir(WEIGHTS_DIR)]
+            print("Done")
+            if len(weights_file) > args.keep_checkpoints_num:
+                print("Removing old checkpoints...")
+                oldest_file = min(weights_file, key=os.path.getctime)
+                os.remove(os.path.join(WEIGHTS_DIR, oldest_file))
+                print("Done")
         if next_level:
             print(f"Goal reached, moving to the next level: {cur_level+1}")
             for worker in trainer_obj.workers.remote_workers():

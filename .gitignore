@@ -164,5 +164,7 @@ atcenv/videos_for_presentation/
 
 atcenv/modifiche_rllib.txt
 
+atcenv/weights
+
 atcenv/log_dir/
 .vscode/launch.json
