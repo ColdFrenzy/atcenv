@@ -32,13 +32,11 @@ if __name__ == "__main__":
     # parse arguments
     args = parse_args()
     # custom values for a run
-    args["episodes"] = 1
-    args.env["min_area"] = 50 * 50
-    args.env["max_area"] = 100*100
-    args.env["num_flights"] = 2
     args.env["reward_as_dict"] = True
+    kwargs = vars(args.env)
+    config = kwargs.pop("config")
     # init environment
-    env = RayWrapper(vars(args.env))
+    env = RayWrapper(config, **kwargs)
     env.flight_env.screen_size = 600
     obs = env.reset()
 
@@ -64,22 +62,30 @@ if __name__ == "__main__":
         # execute one episode
         counter = 0
         # while not done["__all__"]:
-        env.flight_env.flights[0].position._set_coords(15000., 15000.)
+        # 15000., 15000.
+        env.flight_env.flights[0].position._set_coords(-100000000., 15000.)
         env.flight_env.flights[0].track = math.pi/2
         env.flight_env.flights[1].position._set_coords(80000., 15000.)
-        env.flight_env.flights[1].track = -math.pi/2
-        for i in range(100):
+        env.flight_env.flights[1].track = env.flight_env.flights[1].bearing
+        env.flight_env.flights[2].position._set_coords(-1000000, 0.0)
+        for i in range(50):
             # perform step with dummy action
             # obs, rew, done, info = env.step(random_policy())
-            obs, rew, done, info = env.step(no_move_policy)
+            obs, rew, done, info = env.step(move_left_policy)
             # rews[0]["distance_from_target_rew"] += rew[0]["distance_from_target_rew"]
             # rews[0]["distance_from_traj_rew"] += rew[0]["distance_from_traj_rew"]
-            # rews[0]["angle_changed_rew"] += rew[0]["angle_changed_rew"]
+            # # rews[0]["angle_changed_rew"] += rew[0]["angle_changed_rew"]
             # rews[0]["target_reached_rew"] += rew[0]["target_reached_rew"]
+            # rews[0]["drift_rew"] += rew[0]["drift_rew"]
             # print(f"Episode {e}, step {counter} rewards for agent 0:")
             # print(f"distance from target: {rew[0]['distance_from_target_rew']}\naccelleration reward: {rew[0]['accelleration_rew']}\ndistance from trajectory: {rew[0]['distance_from_traj_rew']}\nangle changed reward: {rew[0]['angle_changed_rew']}\ntarget reached reward: {rew[0]['target_reached_rew']}\n")
             print("step {i}")
             for agent_id in obs.keys():
+                print(f"flight {agent_id} rewards: ")
+                print(f"distance from target: {rew[agent_id]['distance_from_target_rew']} " +
+                      f"drift penalty: {rew[agent_id]['drift_rew']} " +
+                      f"target reached rew: {rew[agent_id]['target_reached_rew']}"
+                      )
                 print(obs[agent_id]["agents_in_fov"])
             # print(f"Episode {e}, step {counter} rewards: {rew}")
             # print(f"Episode {e}, step {counter} done info: {done}")
@@ -89,6 +95,4 @@ if __name__ == "__main__":
             time.sleep(0.05)
             # input("Press Enter")
 
-        # close rendering
-        # print(rews/100)
     env.close()

@@ -102,7 +102,7 @@ def model_configs(args):
 
             # === Options for custom models ===
             # Name of a custom model to use
-            "custom_model":  "flight_rnn_model_mask",  # "flight_model_mask",
+            "custom_model":  "flight_model_mask",   # "flight_rnn_model_mask",
             # Extra options to pass to the custom classes. These will be available to
             # the Model's constructor in the model_config field. Also, they will be
             # attempted to be passed as **kwargs to ModelV2 models. For an example,
@@ -114,7 +114,7 @@ def model_configs(args):
                 # the same structure for both actor and critic network, otherwise the first
                 # element are the layers of the critic and the second are the layers of
                 # the actor. if share_weights=True we use the first element as shared architecture.
-                "shared_fc_layers": ([64, 32],),
+                "shared_fc_layers": ([64, 32, 40],),
                 "fc_layers": ([], [])
             },
             # Name of a custom action distribution to use.

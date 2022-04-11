@@ -222,11 +222,11 @@ class FlightEnv(MultiAgentEnv):
                 return True
             return False
         # WEIGHTS OF THE REWARDS
-        collision_weight = -1.0
+        collision_weight = -5.0
         dist_weight = 0.0  # - 1.0
-        target_reached_w = + 200.0
+        target_reached_w = + 1.0
         distance_from_optimal_trajectory_w = 0.0  # - 0.01
-        drift_penalty_w = - 1
+        drift_penalty_w = - 0.1
         changed_angle_penalty_w = 0.0  # - 0.01
         if self.reward_as_dict:
             rews = {k: defaultdict(float) for k in self.flights.keys()}
@@ -241,8 +241,13 @@ class FlightEnv(MultiAgentEnv):
                     distance_from_optimal_trajectory_w
                 rews[f_id]["angle_changed_rew"] += self.changed_angle_penalty[f_id] * \
                     changed_angle_penalty_w
+                drift_rew = min_max_normalizer(flight.drift,
+                                               0, 2*math.pi)
+                rews[f_id]["drift_rew"] += (drift_rew * drift_penalty_w) if drift_rew >= 0 else (
+                    drift_rew * -drift_penalty_w)
                 if target_reached(flight):
                     rews[f_id]["target_reached_rew"] += target_reached_w
+
             else:
                 rews[f_id] += target_dist(flight) * dist_weight
                 rews[f_id] += flight.distance_from_optimal_trajectory * \

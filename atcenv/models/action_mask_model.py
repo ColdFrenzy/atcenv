@@ -63,6 +63,7 @@ class FlightActionMaskModel(TorchModelV2, nn.Module):
         # super(FlightActionMaskModel, self).__init__(
         #     obs_space=obs_space, action_space=action_space, num_outputs=num_outputs, model_config=model_config, name=name  # ,*args, **kwargs
         # )
+        name = "FlightActionMaskModel"
         TorchModelV2.__init__(
             self, obs_space, action_space, num_outputs, model_config, name)
 
@@ -137,8 +138,12 @@ class FlightActionMaskModel(TorchModelV2, nn.Module):
             (outputs, state): The model output tensor of size
                 [BATCH, num_outputs], and the new RNN state.
         """
-        obs = restore_original_dimensions(
-            input_dict["obs"], self.obs_space, "torch")
+        if "obs" in input_dict:
+            obs = restore_original_dimensions(
+                input_dict["obs"], self.obs_space, "torch")
+        else:
+            obs = restore_original_dimensions(
+                input_dict, self.obs_space, "torch")
         action_mask = obs["action_mask"]
         obs_state = torch.cat(
             [obs[elem] for elem in obs.keys() if elem != "action_mask"], dim=1)
@@ -183,7 +188,7 @@ class FlightActionMaskRNNModel(TorchRNN, nn.Module):
                  lstm_state_size=64,
                  *args,
                  **kwargs):
-
+        name = "FlightActionMaskRNNModel"
         TorchModelV2.__init__(
             self, obs_space, action_space, num_outputs, model_config, name)
 

@@ -45,25 +45,37 @@ def FlightCustomEval(env, policy_to_evaluate, video_dir):
     # random.seed(seed_indx)
     obs = env.reset(random=False, config=env_config)
     model = policy_to_evaluate.model
-    h = {flight_id: model.get_initial_state()
-         for flight_id in env.flight_env.flights.keys()}
-    seq_len = torch.tensor([1.])
+    if model.name == "FlightActionMaskRNNModel":
+        h = {flight_id: model.get_initial_state()
+             for flight_id in env.flight_env.flights.keys()}
+        seq_len = torch.tensor([1.])
     actions = {flight_id: None for flight_id in env.flight_env.flights.keys()}
 
     with torch.no_grad():
         while not done["__all__"]:
             # add both the batch and the time dim to the observation returned by the env
-            for flight_id in env.flight_env.flights.keys():
-                for elem in obs[flight_id].keys():
-                    obs[flight_id][elem] = torch.from_numpy(
-                        obs[flight_id][elem]).float().unsqueeze(0).unsqueeze(0)
-                for elem in range(len(h[flight_id])):
-                    if len(h[flight_id][elem].shape) < 2:
-                        h[flight_id][elem] = h[flight_id][elem].unsqueeze(0)
-            for flight_id in env.flight_env.flights.keys():
-                actions[flight_id], h[flight_id] = model.forward_rnn(
-                    obs[flight_id], h[flight_id], seq_len)
-                actions[flight_id] = torch.argmax(actions[flight_id])
+            if model.name == "FlightActionMaskRNNModel":
+                for flight_id in env.flight_env.flights.keys():
+                    for elem in obs[flight_id].keys():
+                        obs[flight_id][elem] = torch.from_numpy(
+                            obs[flight_id][elem]).float().unsqueeze(0).unsqueeze(0)
+                    for elem in range(len(h[flight_id])):
+                        if len(h[flight_id][elem].shape) < 2:
+                            h[flight_id][elem] = h[flight_id][elem].unsqueeze(
+                                0)
+                for flight_id in env.flight_env.flights.keys():
+                    actions[flight_id], h[flight_id] = model.forward_rnn(
+                        obs[flight_id], h[flight_id], seq_len)
+                    actions[flight_id] = torch.argmax(actions[flight_id])
+            elif model.name == "FlightActionMaskModel":
+                for flight_id in env.flight_env.flights.keys():
+                    for elem in obs[flight_id].keys():
+                        obs[flight_id][elem] = torch.from_numpy(
+                            obs[flight_id][elem]).float().unsqueeze(0)
+                for flight_id in env.flight_env.flights.keys():
+                    actions[flight_id], _ = model.forward(
+                        obs[flight_id], [], [])
+                    actions[flight_id] = torch.argmax(actions[flight_id])
             rew, obs, done, info = env.step(actions)
             num_collisions2 += len(env.flight_env.conflicts)
     print(f"Default Policy collisions: {num_collisions2}")

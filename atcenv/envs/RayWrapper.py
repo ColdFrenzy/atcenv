@@ -12,7 +12,7 @@ class RayWrapper(CurriculumFlightEnv):
         """
         Init used for ray support
         """
-        super().__init__(env_context)
+        super(RayWrapper, self).__init__(env_context, **kwargs)
         self.num_flights
 
         # if 'env_config' in env_context.keys():

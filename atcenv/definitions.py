@@ -85,7 +85,7 @@ class Flight:
     @ property
     def bearing(self) -> float:
         """
-        Bearing from current position to target
+        Bearing from current position to target [0, 2PI]
         (clockwise angular distance between the north and the line connecting the Flight
         current position and its destination)
         :return:
@@ -169,6 +169,7 @@ class Flight:
     def drift(self) -> float:
         """
         Drift angle (difference between track and bearing) to the target
+        drift is between [-PI, PI]
         :return:
         """
         drift = self.bearing - self.track
