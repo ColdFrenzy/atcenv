@@ -45,6 +45,16 @@ class Airspace:
 
         return cls(polygon=polygon)
 
+    @classmethod
+    def fixed(cls, points):
+        """
+        Creates a fixed airspace sector given its points
+        """
+
+        polygon = Polygon(points).convex_hull
+
+        return cls(polygon=polygon)
+
 
 @dataclass
 class Flight:
@@ -55,8 +65,8 @@ class Flight:
     target: Point
     optimal_airspeed: float
     flight_id: int
-    fov_depth: float
-    fov_angle: float
+    fov_depth: float = 60*u.nm
+    fov_angle: float = math.pi / 2
 
     airspeed: float = field(init=False)
     track: float = field(init=False)
@@ -170,35 +180,6 @@ class Flight:
         else:
             return drift
 
-    @ classmethod
-    def fixed(cls, airspace: Airspace, position: Point, min_speed: float, max_speed: float, flight_id: int,
-              tol: float = 0.):
-        """
-        Creates a fixed flight
-
-        :param airspace: airspace where the flight is located
-        :param position: flight position
-        :param max_speed: maximum speed of the flights (in kt)
-        :param min_speed: minimum speed of the flights (in kt)
-        :param flight_id: identifier for a flight
-        :param tol: tolerance to consider that the target has been reached (in meters)
-        :return: fixed flight
-        """
-        assert airspace.contains(
-            position), "The point is outside of the Polygon"
-        # random target
-        boundary = airspace.polygon.boundary
-        while True:
-            d = random.uniform(0, airspace.polygon.boundary.length)
-            target = boundary.interpolate(d)
-            if target.distance(position) > tol:
-                break
-
-        # random speed
-        airspeed = random.uniform(min_speed, max_speed)
-
-        return cls(position, target, airspeed, flight_id)
-
     @classmethod
     def random(cls, airspace: Airspace, min_speed: float, max_speed: float, flight_id: int, tol: float = 0., ):
         """
@@ -233,7 +214,18 @@ class Flight:
 
         # random speed
         airspeed = random.uniform(min_speed, max_speed)
-        fov_depth = 60*u.nm
-        fov_angle = math.pi / 2
 
-        return cls(position, target, airspeed, flight_id, fov_depth=fov_depth, fov_angle=fov_angle)
+        return cls(position, target, airspeed, flight_id)
+
+    @ classmethod
+    def fixed(cls, flight_pos: Point, target_pos: Point, airspeed: float, airspace: Airspace, flight_id: int):
+        """
+        Creates a fixed flight
+
+        :param flights_pos: positions of the flight in the airspace
+        :return Flight: fixed flight
+        """
+        assert airspace.polygon.contains(
+            flight_pos), "The point is outside of the Polygon"
+
+        return cls(flight_pos, target_pos, airspeed, flight_id)

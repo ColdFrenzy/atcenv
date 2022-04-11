@@ -21,14 +21,14 @@ def FlightCustomEval(env, policy_to_evaluate, video_dir):
 
     metrics = {}
     # the random seed is used to create the same copy of the environment
-    seed_indx = random.randint(0, 10000)
+    # seed_indx = random.randint(0, 10000)
     env = CustomGymMonitor(
         env=env,
         directory=video_dir,
         video_callable=lambda x: True,
         force=False)
-    random.seed(seed_indx)
-    obs = env.reset()
+    # random.seed(seed_indx)
+    obs, env_config = env.reset(random=True, return_init=True)
     done = {"__all__": False}
     counter = 0
     num_collisions = 0
@@ -42,8 +42,8 @@ def FlightCustomEval(env, policy_to_evaluate, video_dir):
     done = {"__all__": False}
     num_collisions2 = 0
     # reset the seed and the environment
-    random.seed(seed_indx)
-    obs = env.reset()
+    # random.seed(seed_indx)
+    obs = env.reset(random=False, config=env_config)
     model = policy_to_evaluate.model
     h = {flight_id: model.get_initial_state()
          for flight_id in env.flight_env.flights.keys()}

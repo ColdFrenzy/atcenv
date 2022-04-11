@@ -54,9 +54,9 @@ def model_configs(args):
             # Whether to wrap the model with an LSTM.
             "use_lstm": False,
             # Max seq len for training the LSTM, defaults to 20.
-            "max_seq_len": 20,
+            "max_seq_len": 5,
             # Size of the LSTM cell.
-            "lstm_cell_size": 256,
+            "lstm_cell_size": 64,
             # Whether to feed a_{t-1} to LSTM (one-hot encoded if discrete).
             "lstm_use_prev_action": False,
             # Whether to feed r_{t-1} to LSTM.
@@ -114,7 +114,7 @@ def model_configs(args):
                 # the same structure for both actor and critic network, otherwise the first
                 # element are the layers of the critic and the second are the layers of
                 # the actor. if share_weights=True we use the first element as shared architecture.
-                "shared_fc_layers": ([128, 64, 32],),
+                "shared_fc_layers": ([64, 32],),
                 "fc_layers": ([], [])
             },
             # Name of a custom action distribution to use.

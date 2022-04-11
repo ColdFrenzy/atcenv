@@ -46,22 +46,16 @@ class CurriculumFlightEnv(MultiAgentEnv):  # , TaskSettableEnv):
         self.i = 0
         self.num_flights = self.flight_env.num_flights
 
-    def reset(self):
+    def reset(self, **kwargs):
         # reset and eventually update important data
         if self.switch_env:
             self.switch_env = False
             self._make_flight_env()
             self.num_flights = self.flight_env.num_flights
-        return self.flight_env.reset()
+        return self.flight_env.reset(**kwargs)
 
     def step(self, action):
         r, s, d, i = self.flight_env.step(action)
-        # Make rewards scale with the level exponentially:
-        # Level 1: x1
-        # Level 2: x10
-        # Level 3: x100, etc..
-        # for f_id in r.keys():
-        #     r[f_id] *= 10 ** (self.cur_level - 1)
         self.i = self.flight_env.i
 
         return r, s, d, i

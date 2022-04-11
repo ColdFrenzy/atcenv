@@ -1,7 +1,7 @@
 """
 Environment module
 """
-from copy import copy
+from copy import copy, deepcopy
 from typing import DefaultDict, Dict, List
 
 import numpy as np
@@ -555,41 +555,34 @@ class FlightEnv(MultiAgentEnv):
 
         return rew, obs, done, {}
 
-    def reset(self, random=True) -> Dict:
+    def reset(self, random=True, return_init=False, config: dict = None) -> Tuple[Dict, Optional[Dict]]:
         """
         Resets the environment and returns initial observation
+        :param random: if to initialize the environment randomly or statically
+        :param return_init: return the initialization params
+        :param config: dict with the following values 
+            {airspace_bounds: [Points],
+            flights: {0: {"position": Point,
+                           "target": Point,
+                           "airspeed": float
+                           }
+                      1: ...
+                      }
+            }
         :return: initial observation
+        :return: actual configuration of the random environment if return_init is true
         """
+        if random == False:
+            assert config is not None, "If the reset is not random, you need to specify a configuration"
+
         if random:
             # create random airspace
             self.airspace = Airspace.random(self.min_area, self.max_area)
-            # max distance inside the polygon
-            minx, miny, maxx, maxy = self.airspace.polygon.bounds
-            self.max_distance = Point(minx, miny).distance(Point(maxx, maxy))
-            # max distance inside the screen
-            minx, miny, maxx, maxy = self.airspace.polygon.buffer(
-                10 * u.nm).bounds
-            self.max_screen_distance = Point(
-                minx, miny).distance(Point(maxx, maxy))
-
-            if abs(maxx-minx) >= abs(maxy-miny):
-                self.scaler = normalizer(
-                    maxx, minx, maxx, minx, self.screen_size, self.screen_size
-                )
-            else:
-                self.scaler = normalizer(
-                    maxy, miny, maxy, miny, self.screen_size, self.screen_size
-                )
-            # self.scaler = normalizer(
-            #     maxx, minx, maxy, miny, self.screen_size, self.screen_size)
-
-            # create random flights
             self.flights = {}
+            # create random flights
+            idx = 0
             tol = self.distance_init_buffer * self.tol
             min_distance = self.distance_init_buffer * self.min_distance
-
-            idx = 0
-
             while len(self.flights) < self.num_flights:
                 valid = True
                 candidate = Flight.random(
@@ -603,9 +596,44 @@ class FlightEnv(MultiAgentEnv):
                 if valid:
                     self.flights[idx] = candidate
                     idx += 1
+            if return_init:
+                env_config = {}
+                env_config["airspace_bounds"] = deepcopy(
+                    self.airspace.polygon.exterior.coords)
+                env_config["flights"] = {}
+                for f_id in self.flights:
+                    env_config["flights"][f_id] = {}
+                    env_config["flights"][f_id]["position"] = deepcopy(
+                        self.flights[f_id].position)
+                    env_config["flights"][f_id]["target"] = deepcopy(
+                        self.flights[f_id].target)
+                    env_config["flights"][f_id]["airspeed"] = deepcopy(
+                        self.flights[f_id].airspeed)
         else:
-            raise NotImplementedError(
-                "The deterministic env is not implemented yet")
+            self.airspace = Airspace.fixed(config["airspace_bounds"])
+            # create fixed_flights
+            self.flights = {}
+            for f_id in config["flights"].keys():
+                self.flights[f_id] = Flight.fixed(config["flights"][f_id]["position"], config["flights"]
+                                                  [f_id]["target"], config["flights"][f_id]["airspeed"], self.airspace, f_id)
+
+        # max distance inside the polygon
+        minx, miny, maxx, maxy = self.airspace.polygon.bounds
+        self.max_distance = Point(minx, miny).distance(Point(maxx, maxy))
+        # max distance inside the screen
+        minx, miny, maxx, maxy = self.airspace.polygon.buffer(
+            10 * u.nm).bounds
+        self.max_screen_distance = Point(
+            minx, miny).distance(Point(maxx, maxy))
+
+        if abs(maxx-minx) >= abs(maxy-miny):
+            self.scaler = normalizer(
+                maxx, minx, maxx, minx, self.screen_size, self.screen_size
+            )
+        else:
+            self.scaler = normalizer(
+                maxy, miny, maxy, miny, self.screen_size, self.screen_size
+            )
 
         # initialise steps counter
         self.i = 0
@@ -616,7 +644,10 @@ class FlightEnv(MultiAgentEnv):
         self.done["__all__"] = False
 
         # return initial observation
-        return self.observation()
+        if return_init:
+            return self.observation(), env_config
+        else:
+            return self.observation()
 
     def render(self, mode=None) -> Optional[np.ndarray]:
         """

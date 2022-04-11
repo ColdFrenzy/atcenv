@@ -37,21 +37,25 @@ class WandbCallbacks():
             self.video_dir) if os.path.isfile(os.path.join(self.video_dir, f))]
 
         media = [x for x in files if "mp4" in x]
-        media = sorted(media)[-2]
-        files.pop(files.index(media))
-
+        custom_policy = sorted(media)[0]
+        standard = sorted(media)[1]
+        # files.pop(files.index(custom_policy))
+        # files.pop(files.index(standard))
         # get the most recent one and log it
         result["media"] = {
-            "behaviour": wandb.Video(media, format="mp4")}
+            "Custom_Policy": wandb.Video(custom_policy, format="mp4"),
+            "Standard": wandb.Video(standard, format="mp4")}
+
+        new_result = return_results(result)
+
+        wandb.log(new_result)
 
         # empty video dir
         # check if file is used somewhere else, otherwise close it
-        try:
-            [os.unlink(x) for x in files if x]
-        except:
-            pass
-
-        wandb.log(result["media"])
+        # try:
+        [os.unlink(x) for x in files if x]
+        # except:
+        #     pass
 
     def watch_model(self, model):
         wandb.watch(model, log_freq=1, log_graph=True, log="all")
@@ -66,3 +70,28 @@ class WandbCallbacks():
         it ends the current wandb run
         """
         wandb.finish()
+
+
+def return_results(results):
+    """Utility function, it returns the result dict in such a way that
+    it's loggable by wandb
+    """
+    new_results = {}
+    for elem in results.keys():
+        # training configuration. It's already in the file rllib_configs
+        if elem == "config" or isinstance(results[elem], bool) or isinstance(results[elem], str):
+            pass
+        elif isinstance(results[elem], dict):
+            for inner_elem in results[elem].keys():
+                if isinstance(results[elem][inner_elem], bool) or isinstance(results[elem][inner_elem], str):
+                    pass
+                elif isinstance(results[elem][inner_elem], list):
+                    new_results[elem + "/" +
+                                inner_elem] = wandb.Histogram(results[elem][inner_elem])
+                else:
+                    new_results[elem + "/" +
+                                inner_elem] = results[elem][inner_elem]
+        else:
+            new_results[elem] = results[elem]
+
+    return new_results

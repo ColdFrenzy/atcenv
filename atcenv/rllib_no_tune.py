@@ -77,6 +77,7 @@ if __name__ == "__main__":
     wandb_watch = False
     # START TRAINING
     for epoch in range(num_epochs):
+        print(f"Epoch {epoch} of {num_epochs}")
         result = trainer_obj.train()
         default_policy = trainer_obj.get_policy("default")
         if not wandb_watch:
@@ -87,13 +88,15 @@ if __name__ == "__main__":
         )[0].foreach_env.remote(lambda env: env.get_task()))
         if len(cur_level) > 0:
             cur_level = cur_level[0]
+        print(f"evaluating environment with cur_level: {cur_level}")
         env = CurriculumFlightEnv(
-            config["evaluation_config"]["env_config"], cur_level=cur_level)
+            **config["evaluation_config"]["env_config"], cur_level=cur_level)
         eval_result, next_level = FlightCustomEval(
             env, default_policy, config["evaluation_config"]["record_env"])
         result.update(eval_result)
         wdb_callback.log_media(result)
         if next_level:
+            print(f"Goal reached, moving to the next level: {cur_level+1}")
             for worker in trainer_obj.workers.remote_workers():
                 worker.foreach_env.remote(
                     lambda env: env.set_task(cur_level+1))
