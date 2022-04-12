@@ -9,7 +9,7 @@ from atcenv.models.action_mask_model import FlightActionMaskModel, FlightActionM
 from atcenv.common.callbacks import CurriculumCallbacks, MediaWandbLogger
 from atcenv.common.rllib_configs import multi_agent_configs, eval_configs, ppo_configs, model_configs, resources_configs
 from atcenv.common.utils import parse_args, curriculum_fn
-from atcenv.common.custom_eval import FlightCustomEval
+from atcenv.common.custom_eval import flight_custom_eval, flight_custom_eval_no_video
 from atcenv.envs import get_env_cls
 from ray.rllib.agents.ppo import PPOTrainer
 
@@ -92,10 +92,19 @@ if __name__ == "__main__":
         print(f"evaluating environment with cur_level: {cur_level}")
         env = CurriculumFlightEnv(
             **config["evaluation_config"]["env_config"], cur_level=cur_level)
-        eval_result, next_level = FlightCustomEval(
-            env, default_policy, config["evaluation_config"]["record_env"])
-        result.update(eval_result)
-        wdb_callback.log_media(result)
+        ##################################################
+        # SAVE MEDIA
+        ##################################################
+        if epoch % args.media_checkpoints_freq == 0:
+            eval_result, next_level = flight_custom_eval(
+                env, default_policy, config["evaluation_config"]["record_env"])
+            result.update(eval_result)
+            wdb_callback.log_media(result)
+        else:
+            eval_result, next_level = flight_custom_eval_no_video(
+                env, default_policy, config["evaluation_duration"])
+            result.update(eval_result)
+            wdb_callback.log(result)
         ##################################################
         # SAVE CHECKPOINTS
         ##################################################

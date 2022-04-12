@@ -1,0 +1,58 @@
+early_terminate:
+  eta: 3
+  min_iter: 10
+  type: hyperband
+method: bayes
+metric:
+  goal: maximize
+  name: mean_reward
+parameters:
+  batch_size:
+    values:
+    - 8
+    - 16
+    - 32
+    - 50
+    - 200
+  dropout:
+    distribution: uniform
+    max: 0.8
+    min: 0
+  epochs:
+    value: 100
+  gae_lambda:
+    distribution: uniform
+    max: 1.0
+    min: 0.9
+  sgd_iterations:
+    distribution: int_uniform
+    max: 30
+    min: 5
+  hidden_layer_1_size:
+    values:
+    - 80
+    - 256
+    - 128
+  hidden_layer_2_size:
+    values:
+    - 10
+    - 12
+    - 14
+    - 18
+    - 20
+  hidden_layer_3_size:
+    values:
+    - 24
+    - 16
+    - 32
+    - 36
+    - 40
+  learn_rate:
+    distribution: uniform
+    max: 0.3
+    min: 3e-05
+  clip_param:
+    distribution: uniform
+    max: 0.35
+    min: 0.25
+program: rllib_sweep.py

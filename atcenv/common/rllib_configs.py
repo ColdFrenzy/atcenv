@@ -145,7 +145,7 @@ def ppo_configs(args):
         "rollout_fragment_length": 200 if args.debug else 500,
         # Number of timesteps collected for each SGD round. This defines the size
         # of each SGD epoch.
-        "train_batch_size": 400 if args.debug else 4000,
+        "train_batch_size": 400 if args.debug else 10000,
         # Total SGD batch size across all devices for SGD. This defines the
         # minibatch size within each epoch.
         "sgd_minibatch_size": 25 if args.debug else 256,
@@ -174,7 +174,7 @@ def ppo_configs(args):
         "clip_param": 0.3,
         # Clip param for the value function. Note that this is sensitive to the
         # scale of the rewards. If your expected V is large, increase this.
-        "vf_clip_param": 1000.0,
+        "vf_clip_param": 300.0,
         # If specified, clip the global norm of gradients by this amount.
         "grad_clip": None,
         # Target value for KL divergence.
@@ -204,7 +204,7 @@ def eval_configs(args):
         # Evaluate once per training iteration.
         "evaluation_interval": 0,
         # Run evaluation on (at least) two episodes
-        "evaluation_duration": 1,
+        "evaluation_duration": 5,
         # ... using one evaluation worker (setting this to 0 will cause
         # evaluation to run on the local evaluation worker, blocking
         # training until evaluation is done).

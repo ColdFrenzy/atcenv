@@ -26,8 +26,14 @@ class WandbCallbacks():
         )
         self.video_dir = video_dir
 
-    def log_media(self, result: Dict):
+    def log(self, result: Dict):
+        """Logs only the results"""
+        new_result = return_results(result)
+        wandb.log(new_result)
 
+    def log_media(self, result: Dict):
+        """Logs the results and the evaluation videos
+        """
         ##############################
         #   Medias
         ###############################
@@ -85,9 +91,6 @@ def return_results(results):
             for inner_elem in results[elem].keys():
                 if isinstance(results[elem][inner_elem], bool) or isinstance(results[elem][inner_elem], str):
                     pass
-                elif isinstance(results[elem][inner_elem], list):
-                    new_results[elem + "/" +
-                                inner_elem] = wandb.Histogram(results[elem][inner_elem])
                 else:
                     new_results[elem + "/" +
                                 inner_elem] = results[elem][inner_elem]

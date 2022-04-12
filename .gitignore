@@ -166,5 +166,7 @@ atcenv/modifiche_rllib.txt
 
 atcenv/weights
 
+atcenv/important_weights
+
 atcenv/log_dir/
 .vscode/launch.json

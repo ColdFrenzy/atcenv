@@ -363,8 +363,10 @@ class FlightEnv(MultiAgentEnv):
         for i, flight in self.flights.items():
             observations[i] = {}
             # compute observations and normalizations
+            # speed normalized between min and max speed
             v = min_max_normalizer(
-                flight.airspeed, self.max_speed, self.min_speed)
+                flight.airspeed, self.min_speed, self.max_speed)
+            # bearing angle between [-pi,pi]
             b = min_max_normalizer(flight.bearing, 0, 2 * math.pi)
             d = min_max_normalizer(
                 flight.distance, 0, self.max_distance)
@@ -393,7 +395,7 @@ class FlightEnv(MultiAgentEnv):
         seen_agents = []
         flight_fov = self.flights[flight_id].fov
         for i, flight in self.flights.items():
-            if i == flight_id:
+            if i == flight_id or self.done[i]:
                 continue
             else:
                 if flight_fov.contains(flight.position):

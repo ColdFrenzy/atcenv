@@ -5,6 +5,8 @@ from typing import OrderedDict
 from collections import defaultdict
 from tqdm import tqdm
 import time
+
+from wandb import agent
 from atcenv.common.utils import parse_args
 import random
 import math
@@ -33,6 +35,7 @@ if __name__ == "__main__":
     args = parse_args()
     # custom values for a run
     args.env["reward_as_dict"] = True
+    args.env["stop_when_outside"] = False
     kwargs = vars(args.env)
     config = kwargs.pop("config")
     # init environment
@@ -62,13 +65,12 @@ if __name__ == "__main__":
         # execute one episode
         counter = 0
         # while not done["__all__"]:
-        # 15000., 15000.
-        env.flight_env.flights[0].position._set_coords(-100000000., 15000.)
+        env.flight_env.done = {0: False, 1: False, 2: True}
+        env.flight_env.flights[0].position._set_coords(15000., 15000.)
         env.flight_env.flights[0].track = math.pi/2
-        env.flight_env.flights[1].position._set_coords(80000., 15000.)
+        env.flight_env.flights[1].position._set_coords(100000., 15000.)
         env.flight_env.flights[1].track = env.flight_env.flights[1].bearing
-        env.flight_env.flights[2].position._set_coords(-1000000, 0.0)
-        for i in range(50):
+        for i in range(100):
             # perform step with dummy action
             # obs, rew, done, info = env.step(random_policy())
             obs, rew, done, info = env.step(move_left_policy)
@@ -86,7 +88,12 @@ if __name__ == "__main__":
                       f"drift penalty: {rew[agent_id]['drift_rew']} " +
                       f"target reached rew: {rew[agent_id]['target_reached_rew']}"
                       )
-                print(obs[agent_id]["agents_in_fov"])
+                print(f"flight {agent_id} observations: ")
+                print(f"fov: {obs[agent_id]['agents_in_fov']}")
+                print(f"velocity: {obs[agent_id]['velocity']}")
+                print(f"bearing: {obs[agent_id]['bearing']}")
+                print(
+                    f"distance from target: {obs[agent_id]['distance_from_target']}")
             # print(f"Episode {e}, step {counter} rewards: {rew}")
             # print(f"Episode {e}, step {counter} done info: {done}")
             counter += 1

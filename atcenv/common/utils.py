@@ -19,11 +19,14 @@ def parse_args():
     )
     parser.add_argument('--episodes', type=int, default=30)
     parser.add_argument('--resume', type=bool, default=False)
-    parser.add_argument('--num_cpus', type=int, default=1)
+    parser.add_argument('--num_cpus', type=int, default=6)
     parser.add_argument('--num_gpus', type=int, default=0)
-    parser.add_argument('--num_workers', type=int, default=0)
-    parser.add_argument('--checkpoint_freq', type=int, default=1)  # 3
-    parser.add_argument('--keep_checkpoints_num', type=int, default=2)  # 5
+    parser.add_argument('--num_workers', type=int, default=6)
+    parser.add_argument('--checkpoint_freq', type=int, default=5)
+    parser.add_argument('--keep_checkpoints_num', type=int,
+                        default=5)  # keep last n checkpoints
+    parser.add_argument('--media_checkpoints_freq', type=int,
+                        default=5)  # save videos every n epochs
     parser.add_argument('--config', action=ActionConfigFile)
     parser.add_argument('-debug', action="store_true")
     parser.add_argument('-cur_dir', default=os.getcwd())
