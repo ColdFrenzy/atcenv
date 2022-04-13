@@ -14,6 +14,7 @@ class WandbCallbacks():
         mode: Optional[str] = None,
         group: Optional[str] = None,
         video_dir: Optional[str] = None,
+        config: Optional[dict] = None,
         **kwargs,
     ):
 
@@ -21,6 +22,7 @@ class WandbCallbacks():
             project=project,
             id=run_id,
             mode=mode,
+            config=config,
             # group=group,
             **kwargs,
         )

@@ -1,9 +1,9 @@
-from http.client import ImproperConnectionState
 import ray as ray
 import os
 import wandb
-from regex import W
+from copy import copy
 import torch
+import inspect
 from atcenv.envs.CurriculumFlightEnv import CurriculumFlightEnv
 
 from atcenv.common.wandb_callbacks import WandbCallbacks
@@ -30,11 +30,6 @@ hyperparams_defaults = dict(
     epochs=100,
 )
 
-# Pass your defaults to wandb.init
-wandb.init(config=hyperparams_defaults, project="atc-challenge-sweep")
-# Access all hyperparameter values through wandb.config
-sweep_config = wandb.config
-run_name = wandb.run.name
 
 if __name__ == "__main__":
     class Args:
@@ -76,7 +71,13 @@ if __name__ == "__main__":
     ##########################
     #   Update config dict
     ##########################
-    env_config = dict(env_config=vars(args.env))
+    env_args = inspect.getfullargspec(args.env.__init__).args
+    # remove self
+    env_args.pop(0)
+    env_val = inspect.getfullargspec(args.env.__init__)[3]
+    env_config = {'env_config': {}}
+    for i, elem in enumerate(env_args):
+        env_config['env_config'][elem] = env_val[i]
     tmp = env_cls(env_config)
 
     ma_configs = multi_agent_configs(
@@ -92,6 +93,20 @@ if __name__ == "__main__":
     config.update(m_configs)
 
     ##########################
+    #   Define wandb callbacks
+    ##########################
+
+    wdb_callback = WandbCallbacks(
+        video_dir=e_configs['evaluation_config']['record_env'],
+        mode="offline" if args.debug else "offline",
+        config=hyperparams_defaults,
+        project="atc-challenge-sweep"
+    )
+    # Access all hyperparameter values through wandb.config
+    sweep_config = wandb.config
+    run_name = wandb.run.name
+
+    ##########################
     #   Set ray parameters to the one chosen by wandb
     ##########################
     config["model"]["custom_model_config"]["shared_fc_layers"] = (
@@ -105,20 +120,8 @@ if __name__ == "__main__":
     config["clip_param"] = sweep_config.clip_param
 
     ##########################
-    #   Define wandb callbacks
-    ##########################
-
-    wdb_callback = WandbCallbacks(
-        video_dir=e_configs['evaluation_config']['record_env'],
-        project="atcenv",
-        mode="offline" if args.debug else "online",
-        resume=False,
-    )
-
-    ##########################
     #   Define custom training function
     ##########################
-
     trainer_obj = PPOTrainer(config=config)
     num_epochs = sweep_config.epochs
     wandb_watch = False

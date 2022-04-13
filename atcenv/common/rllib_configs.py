@@ -145,7 +145,7 @@ def ppo_configs(args):
         "rollout_fragment_length": 200 if args.debug else 500,
         # Number of timesteps collected for each SGD round. This defines the size
         # of each SGD epoch.
-        "train_batch_size": 400 if args.debug else 10000,
+        "train_batch_size": 400 if args.debug else 4000,
         # Total SGD batch size across all devices for SGD. This defines the
         # minibatch size within each epoch.
         "sgd_minibatch_size": 25 if args.debug else 256,
