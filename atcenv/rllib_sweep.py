@@ -38,7 +38,8 @@ if __name__ == "__main__":
             self.num_gpus = 0
             self.num_workers = 5
             self.checkpoint_freq = 5
-            self.media_checkpoint_freq = 5
+            self.media_checkpoints_freq = 5
+            self.keep_checkpoints_num = 5
             self.debug = False
             self.env = CurriculumFlightEnv
             self.cur_dir = os.path.abspath(os.path.join(__file__, os.pardir))
@@ -98,7 +99,7 @@ if __name__ == "__main__":
 
     wdb_callback = WandbCallbacks(
         video_dir=e_configs['evaluation_config']['record_env'],
-        mode="offline" if args.debug else "offline",
+        mode="offline" if args.debug else "online",
         config=hyperparams_defaults,
         project="atc-challenge-sweep"
     )
