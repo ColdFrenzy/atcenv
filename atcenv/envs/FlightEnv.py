@@ -274,7 +274,7 @@ class FlightEnv(MultiAgentEnv):
         """Return a mask which mask out the invalid actions involving the accelleration"""
         action_masked = []
         for i, elem in enumerate(self.action_list):
-            if self.min_speed <= self.flights[flight_id].airspeed + elem[1]*self.dt <= self.max_speed:
+            if not(self.min_speed <= self.flights[flight_id].airspeed + elem[1]*self.dt <= self.max_speed):
                 action_masked.append(i)
         return action_masked
 

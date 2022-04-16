@@ -43,6 +43,7 @@ class RayWrapper(CurriculumFlightEnv):
         #       - discostamento da traiettoria (?)
 
         # rllib doesn't want any input from previously done agents, so filter them out
+        # TODO: check if this is correct
         for done_id in self.done_ids:
             rew.pop(done_id)
             obs.pop(done_id)

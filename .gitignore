@@ -170,3 +170,5 @@ atcenv/important_weights
 
 atcenv/log_dir/
 .vscode/launch.json
+
+discrete_main.py
