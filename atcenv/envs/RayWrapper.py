@@ -26,7 +26,7 @@ class RayWrapper(CurriculumFlightEnv):
         self.observation_space = gym.spaces.Dict({
             "velocity": gym.spaces.Box(low=0, high=1, shape=(1,)),
             "bearing": gym.spaces.Box(low=0, high=1, shape=(1,)),
-            "agents_in_fov": gym.spaces.Box(low=-1, high=1, shape=(2 * self.max_agent_seen,)),
+            "agents_in_fov": gym.spaces.Box(low=-1, high=1, shape=(3 * self.max_agent_seen,)),
             "distance_from_target": gym.spaces.Box(low=0, high=1, shape=(1,)),
             "action_mask": gym.spaces.Box(
                 low=0.0, high=1.0, shape=(len(self.action_list),)),

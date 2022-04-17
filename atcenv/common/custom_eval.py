@@ -85,8 +85,8 @@ def flight_custom_eval(env, policy_to_evaluate, video_dir):
     next_level = False
     # If the episode ends before the max_episode_len, it means that the level
     # was succesfully completed
-    if env.flight_env.i < env.flight_env.max_episode_len:
-        next_level = True
+    # if env.flight_env.i < env.flight_env.max_episode_len:
+    #     next_level = True
 
     return metrics, next_level
 

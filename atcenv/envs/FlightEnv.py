@@ -149,7 +149,6 @@ class FlightEnv(MultiAgentEnv):
         # RDC: here you should implement your resolution actions
         ##########################################################
         self.changed_angle_penalty = {k: 0 for k in self.flights.keys()}
-        self.accelleration_penalty = {k: 0 for k in self.flights.keys()}
         for f_id, action in actions.items():
             f = self.flights[f_id]
             actual_action = self.action_list[action]
@@ -165,8 +164,7 @@ class FlightEnv(MultiAgentEnv):
             # this is not needed since invalid accellerations is already masked out
             if self.min_speed <= f.airspeed + actual_action[1]*self.dt <= self.max_speed:
                 f.airspeed += actual_action[1]
-            else:
-                self.accelleration_penalty[f_id] = 1.0
+            assert self.min_speed <= f.airspeed <= self.max_speed, f"The speed value is invalid {f.airspeed}. It should be between [{self.min_speed},{self.max_speed}]"
 
     def reward(self) -> Dict:
         """
@@ -222,11 +220,11 @@ class FlightEnv(MultiAgentEnv):
                 return True
             return False
         # WEIGHTS OF THE REWARDS
-        collision_weight = -5.0
+        collision_weight = -0.1
         dist_weight = 0.0  # - 1.0
-        target_reached_w = + 1.0
+        target_reached_w = +100.0
         distance_from_optimal_trajectory_w = 0.0  # - 0.01
-        drift_penalty_w = - 0.1
+        drift_penalty_w = -0.1
         changed_angle_penalty_w = 0.0  # - 0.01
         if self.reward_as_dict:
             rews = {k: defaultdict(float) for k in self.flights.keys()}
@@ -302,7 +300,8 @@ class FlightEnv(MultiAgentEnv):
                 angles:
                 dist: normalized distance (1 is max fov depth)
             """
-
+            left_angle = np.full(self.max_agent_seen, -1., dtype=np.float32)
+            right_angle = np.full(self.max_agent_seen, -1., dtype=np.float32)
             angles = np.full(self.max_agent_seen, -1., dtype=np.float32)
             dists = np.full(self.max_agent_seen, -1., dtype=np.float32)
 
@@ -325,6 +324,14 @@ class FlightEnv(MultiAgentEnv):
                         # angle is normalized between 0 and 1, at zero we are at the beginning
                         # of the fov (clockwise) at 1 we are at the end of the fov
                         angles[j] = min_max_normalizer(angle, 0, f.fov_angle)
+                        # with the following if, we map the FOV angle such that it is 0 on the extremes
+                        # and 0.5 in the middle
+                        if angles[j] >= 0.5:
+                            right_angle[j] = 1.0 - angles[j]
+                        else:
+                            left_angle[j] = angles[j]
+                        assert 0.0 <= angles[
+                            j] <= 1.0, f"The FoV angle is invalid: {angles[j]}. The angle should be between [0,1]"
                         dists[j] = math.dist([self.flights[seen_agent_idx].position.x,
                                               self.flights[seen_agent_idx].position.y],
                                              [origin.x, origin.y]) / f.fov_depth
@@ -351,12 +358,18 @@ class FlightEnv(MultiAgentEnv):
                         # angle is normalized between 0 and 1, at zero we are at the beginning
                         # of the fov (clockwise) at 1 we are at the end of the
                         angles[j] = min_max_normalizer(angle, 0, f.fov_angle)
+                        if angles[j] >= 0.5:
+                            right_angle[j] = 1.0 - angles[j]
+                        else:
+                            left_angle[j] = angles[j]
+                        assert 0.0 <= angles[
+                            j] <= 1.0, f"The FoV angle is invalid: {angles[j]}. The angle should be between [0,1]"
                         dists[j] = math.dist([nearest_agent.x,
                                               nearest_agent.y],
                                              [origin.x, origin.y]) / f.fov_depth
 
                         seen_agents.difference(nearest_agent)
-            return angles, dists
+            return left_angle, right_angle, dists
 
         observations = {}
 
@@ -372,8 +385,8 @@ class FlightEnv(MultiAgentEnv):
                 flight.distance, 0, self.max_distance)
             if d > 1.0:
                 d = 1.0
-            angles, dists = polar_distance(flight)
-            obs = np.concatenate([angles, dists])
+            left_angle, right_angle, dists = polar_distance(flight)
+            obs = np.concatenate([left_angle, right_angle, dists])
 
             assert 0 <= v <= 1, f"Airspeed is not in range [0,1]. Got '{v}'"
             assert 0 <= b <= 1, f"Bearing is not in range [0,1]. Got '{b}'"
