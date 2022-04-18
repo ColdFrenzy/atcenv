@@ -11,7 +11,7 @@ class LoggerWrapper(RayWrapper):
         """
         Init used for ray support
         """
-        super().__init__(env_context)
+        super().__init__(env_context,**kwargs)
 
         self.logging_actions = []
         self.logging_obs = {}

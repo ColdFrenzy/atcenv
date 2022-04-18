@@ -66,7 +66,8 @@ class FlightEnv(MultiAgentEnv):
                  screen_size=600,
                  stop_when_outside=True,
                  max_distance_from_target=10,
-                 ** kwargs):
+                 reward_dict:Dict={},
+                 **kwargs):
         """
         Initialise the environment.
 
@@ -123,10 +124,34 @@ class FlightEnv(MultiAgentEnv):
         self.wind_components = self.wind_effect()
 
         # =============================================================================
+        # REWARDS
+        # =============================================================================
+
+        rew_dict = dict(
+            collision_weight=-0.1,
+            dist_weight=0.0,  # - 1.0
+            target_reached_w=+100.0,
+            distance_from_optimal_trajectory_w=0.0,  # - 0.01
+            drift_penalty_w=-0.1,
+            changed_angle_penalty_w=0.0,
+        )
+
+
+        for k in rew_dict.keys():
+            if k not in reward_dict.keys():
+                reward_dict[k] = rew_dict[k]
+
+        # print("#" * 20)
+        # print("Params in flight env")
+        # print("#" * 20)
+        # print(reward_dict)
+        self.reward_dict = reward_dict
+
+        # =============================================================================
         # ACTIONS
         # =============================================================================
         self.yaw_angles = [math.radians(angle) for angle in yaw_angles]
-        self.accelleration = [acc*u.kt for acc in accelleration]
+        self.accelleration = [acc * u.kt for acc in accelleration]
         # action_space contains all combinations of angles and accelleration
         # action_space = [(-5.0, -5.0), (-5.0, 0.0), (-5.0, 5.0), ..., (5.0, 5.0)]
         self.action_list = list(it.product(
@@ -162,7 +187,7 @@ class FlightEnv(MultiAgentEnv):
                 f.track = f.track % u.circle
             # change airspeed only if the new airspeed is the [self.min_speed, self.max_speed] range
             # this is not needed since invalid accellerations is already masked out
-            if self.min_speed <= f.airspeed + actual_action[1]*self.dt <= self.max_speed:
+            if self.min_speed <= f.airspeed + actual_action[1] * self.dt <= self.max_speed:
                 f.airspeed += actual_action[1]
             assert self.min_speed <= f.airspeed <= self.max_speed, f"The speed value is invalid {f.airspeed}. It should be between [{self.min_speed},{self.max_speed}]"
 
@@ -171,6 +196,7 @@ class FlightEnv(MultiAgentEnv):
         Returns the reward assigned to each agent
         :return: reward assigned to each agent
         """
+
         ##########################################################
         # RDC: here you should implement your reward function
         ##########################################################
@@ -219,13 +245,15 @@ class FlightEnv(MultiAgentEnv):
             if dist < self.tol:
                 return True
             return False
+
         # WEIGHTS OF THE REWARDS
-        collision_weight = -0.01
-        dist_weight = 0.0  # - 1.0
-        target_reached_w = +10.0
-        distance_from_optimal_trajectory_w = 0.0  # - 0.01
-        drift_penalty_w = -0.1
-        changed_angle_penalty_w = 0.0  # - 0.01
+        collision_weight = self.reward_dict['collision_weight']
+        dist_weight = self.reward_dict['dist_weight'] # - 1.0
+        target_reached_w =self.reward_dict['target_reached_w']
+        distance_from_optimal_trajectory_w = self.reward_dict['distance_from_optimal_trajectory_w']# - 0.01
+        drift_penalty_w = self.reward_dict['drift_penalty_w']
+        changed_angle_penalty_w = self.reward_dict['changed_angle_penalty_w']
+
         if self.reward_as_dict:
             rews = {k: defaultdict(float) for k in self.flights.keys()}
         else:
@@ -236,26 +264,26 @@ class FlightEnv(MultiAgentEnv):
                 rews[f_id]["distance_from_target_rew"] += target_dist(
                     flight) * dist_weight
                 rews[f_id]["distance_from_traj_rew"] += flight.distance_from_optimal_trajectory * \
-                    distance_from_optimal_trajectory_w
+                                                        distance_from_optimal_trajectory_w
                 rews[f_id]["angle_changed_rew"] += self.changed_angle_penalty[f_id] * \
-                    changed_angle_penalty_w
+                                                   changed_angle_penalty_w
                 drift_rew = min_max_normalizer(flight.drift,
-                                               0, 2*math.pi)
+                                               0, 2 * math.pi)
                 rews[f_id]["drift_rew"] += (drift_rew * drift_penalty_w) if drift_rew >= 0 else (
-                    drift_rew * -drift_penalty_w)
+                        drift_rew * -drift_penalty_w)
                 if target_reached(flight):
                     rews[f_id]["target_reached_rew"] += target_reached_w
 
             else:
                 rews[f_id] += target_dist(flight) * dist_weight
                 rews[f_id] += flight.distance_from_optimal_trajectory * \
-                    distance_from_optimal_trajectory_w
+                              distance_from_optimal_trajectory_w
                 rews[f_id] += self.changed_angle_penalty[f_id] * \
-                    changed_angle_penalty_w
+                              changed_angle_penalty_w
                 drift_rew = min_max_normalizer(flight.drift,
-                                               0, 2*math.pi)
+                                               0, 2 * math.pi)
                 rews[f_id] += (drift_rew * drift_penalty_w) if drift_rew >= 0 else (
-                    drift_rew * -drift_penalty_w)
+                        drift_rew * -drift_penalty_w)
                 if target_reached(flight):
                     rews[f_id] += target_reached_w
 
@@ -272,7 +300,7 @@ class FlightEnv(MultiAgentEnv):
         """Return a mask which mask out the invalid actions involving the accelleration"""
         action_masked = []
         for i, elem in enumerate(self.action_list):
-            if not(self.min_speed <= self.flights[flight_id].airspeed + elem[1]*self.dt <= self.max_speed):
+            if not (self.min_speed <= self.flights[flight_id].airspeed + elem[1] * self.dt <= self.max_speed):
                 action_masked.append(i)
         return action_masked
 
@@ -322,7 +350,7 @@ class FlightEnv(MultiAgentEnv):
                         angle = (np.arctan2(x_dist, y_dist) +
                                  u.circle) % u.circle
                         fov_start_angle = (
-                            (f.track - f.fov_angle/2) + u.circle) % u.circle
+                                                  (f.track - f.fov_angle / 2) + u.circle) % u.circle
                         if angle < fov_start_angle:
                             angle += u.circle
                         angle = angle - fov_start_angle
@@ -360,7 +388,7 @@ class FlightEnv(MultiAgentEnv):
                                  u.circle) % u.circle
                         # starting angle of the current flight fov w.r.t. north
                         fov_start_angle = (
-                            (f.track - f.fov_angle/2) + u.circle) % u.circle
+                                                  (f.track - f.fov_angle / 2) + u.circle) % u.circle
 
                         if angle < fov_start_angle:
                             angle += u.circle
@@ -650,7 +678,7 @@ class FlightEnv(MultiAgentEnv):
             self.flights = {}
             for f_id in config["flights"].keys():
                 self.flights[f_id] = Flight.fixed(config["flights"][f_id]["position"], config["flights"]
-                                                  [f_id]["target"], config["flights"][f_id]["airspeed"], self.airspace, f_id)
+                [f_id]["target"], config["flights"][f_id]["airspeed"], self.airspace, f_id)
 
         # max distance inside the polygon
         minx, miny, maxx, maxy = self.airspace.polygon.bounds
@@ -661,7 +689,7 @@ class FlightEnv(MultiAgentEnv):
         self.max_screen_distance = Point(
             minx, miny).distance(Point(maxx, maxy))
 
-        if abs(maxx-minx) >= abs(maxy-miny):
+        if abs(maxx - minx) >= abs(maxy - miny):
             self.scaler = normalizer(
                 maxx, minx, maxx, minx, self.screen_size, self.screen_size
             )

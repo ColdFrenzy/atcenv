@@ -2,7 +2,7 @@ import gym
 import random
 
 from ray.rllib.env.apis.task_settable_env import TaskSettableEnv
-from typing import Optional
+from typing import Optional, Dict
 from ray.rllib.env.env_context import EnvContext
 from ray.rllib.utils.annotations import override
 from atcenv.envs.FlightEnv import FlightEnv
@@ -17,7 +17,7 @@ class CurriculumFlightEnv(MultiAgentEnv):  # , TaskSettableEnv):
     metadata = {'render.modes': ['rgb_array']}
 
     def __init__(self, config: EnvContext = None, max_episode_len: Optional[int] = 300,
-                 stop_when_outside: Optional[bool] = False, cur_level: Optional[int] = 1, reward_as_dict: Optional[bool] = False):
+                 stop_when_outside: Optional[bool] = True, cur_level: Optional[int] = 1, reward_as_dict: Optional[bool] = False, reward_dict:Optional[Dict]={}, **kwargs):
         self.LEVELS = [{"min_area": 50 * 50, "max_area": 100*100, "num_flights": 3},
                        {"min_area": 80 * 80, "max_area": 120*120,
                            "num_flights": 4},
@@ -39,7 +39,7 @@ class CurriculumFlightEnv(MultiAgentEnv):  # , TaskSettableEnv):
         self.cur_level = cur_level
         self.stop_when_outside = stop_when_outside
         self.flight_env = None
-        self._make_flight_env()  # create the flightenv
+        self._make_flight_env(reward_dict)  # create the flightenv
         self.switch_env = False
         # Variables needed from the wrappers
         self.action_list = self.flight_env.action_list
@@ -50,8 +50,12 @@ class CurriculumFlightEnv(MultiAgentEnv):  # , TaskSettableEnv):
     def reset(self, **kwargs):
         # reset and eventually update important data
         if self.switch_env:
+            configs=dict(
+                stop_when_outside=self.stop_when_outside,
+                reward_as_dict=self.reward_as_dict,
+            )
             self.switch_env = False
-            self._make_flight_env()
+            self._make_flight_env(configs)
             self.num_flights = self.flight_env.num_flights
         return self.flight_env.reset(**kwargs)
 
@@ -84,6 +88,7 @@ class CurriculumFlightEnv(MultiAgentEnv):  # , TaskSettableEnv):
         self.cur_level = task
         self.switch_env = True
 
-    def _make_flight_env(self):
+    def _make_flight_env(self, reward_dict):
+        ## fixme : in reset must pass something
         self.flight_env = FlightEnv(
-            **self.LEVELS[self.cur_level-1], stop_when_outside=self.stop_when_outside, reward_as_dict=self.reward_as_dict)
+            **self.LEVELS[self.cur_level-1], stop_when_outside=self.stop_when_outside, reward_as_dict=self.reward_as_dict, reward_dict=reward_dict)

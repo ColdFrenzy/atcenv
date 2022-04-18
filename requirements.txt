@@ -10,3 +10,4 @@ wandb==0.12.11
 torch==1.10.0
 gputils==1.0.4
 hyperopt==0.2.7
+regex==2022.3.15

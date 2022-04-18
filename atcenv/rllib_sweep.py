@@ -28,8 +28,17 @@ hyperparams_defaults = dict(
     clip_param=0.3,
     batch_size=16,
     epochs=100,
-)
 
+    ## rewards
+    reward_dict=dict(
+        collision_weight=-10.2,
+        dist_weight=10.0,  # - 1.0
+        target_reached_w=+10.0,
+        distance_from_optimal_trajectory_w=10.0,  # - 0.01
+        drift_penalty_w=-10.1,
+        changed_angle_penalty_w=10.0,
+    ),
+)
 
 if __name__ == "__main__":
     class Args:
@@ -43,6 +52,8 @@ if __name__ == "__main__":
             self.debug = False
             self.env = CurriculumFlightEnv
             self.cur_dir = os.path.abspath(os.path.join(__file__, os.pardir))
+
+
     args = Args()
     CUR_DIR = os.path.abspath(os.path.join(__file__, os.pardir))
     WEIGHTS_DIR = os.path.join(CUR_DIR, "weights")
@@ -107,18 +118,32 @@ if __name__ == "__main__":
     sweep_config = wandb.config
     run_name = wandb.run.name
 
+    # print("#" * 20)
+    # print("Params from sweep")
+    # print("#" * 20)
+    # print(sweep_config)
+
+    # save
+    sweep_reward_dict = {}
+    for k in hyperparams_defaults['reward_dict'].keys():
+        if k in sweep_config.keys():
+            sweep_reward_dict[k] = sweep_config[k]
+        else:
+            sweep_reward_dict[k] = hyperparams_defaults['reward_dict'][k]
+
     ##########################
     #   Set ray parameters to the one chosen by wandb
     ##########################
     config["model"]["custom_model_config"]["shared_fc_layers"] = (
         [sweep_config.hidden_layer_1_size, sweep_config.hidden_layer_2_size,
-            sweep_config.hidden_layer_3_size],
+         sweep_config.hidden_layer_3_size],
     )
     config["lambda"] = sweep_config.gae_lambda
     config["sgd_minibatch_size"] = sweep_config.batch_size
     config["num_sgd_iter"] = sweep_config.sgd_iterations
     config["lr"] = sweep_config.learn_rate
     config["clip_param"] = sweep_config.clip_param
+    config["env_config"]["reward_dict"] = sweep_reward_dict
 
     ##########################
     #   Define custom training function
@@ -127,7 +152,7 @@ if __name__ == "__main__":
     num_epochs = sweep_config.epochs
     wandb_watch = False
     # START TRAINING
-    for epoch in range(1, num_epochs+1):
+    for epoch in range(1, num_epochs + 1):
         print(f"Epoch {epoch} of {num_epochs}")
         result = trainer_obj.train()
         default_policy = trainer_obj.get_policy("default")
@@ -141,7 +166,7 @@ if __name__ == "__main__":
             cur_level = cur_level[0]
         print(f"evaluating environment with cur_level: {cur_level}")
         env = CurriculumFlightEnv(
-            **config["evaluation_config"]["env_config"], cur_level=cur_level)
+            **config["evaluation_config"]["env_config"], cur_level=cur_level, reward_dict=sweep_reward_dict)
         ##################################################
         # SAVE MEDIA
         ##################################################
@@ -158,31 +183,31 @@ if __name__ == "__main__":
         ##################################################
         # SAVE CHECKPOINTS
         ##################################################
-        if epoch % args.checkpoint_freq == 0:
-            print("Saving checkpoints...")
-            NEW_WEIGHTS_DIR = os.path.join(WEIGHTS_DIR, run_name)
-            if not os.path.exists(NEW_WEIGHTS_DIR):
-                os.makedirs(NEW_WEIGHTS_DIR)
-            new_weight_file = os.path.join(
-                NEW_WEIGHTS_DIR, f"model_weights_{epoch}.pt")
-            torch.save(default_policy.model.state_dict(), new_weight_file)
-            weights_file = [os.path.join(WEIGHTS_DIR, w)
-                            for w in os.listdir(WEIGHTS_DIR)]
-            print("Done")
-            if len(weights_file) > args.keep_checkpoints_num:
-                print("Removing old checkpoints...")
-                oldest_file = min(weights_file, key=os.path.getctime)
-                os.remove(os.path.join(WEIGHTS_DIR, oldest_file))
-                print("Done")
-        if next_level:
-            # save weights used to switch between levels to the important weights dir
-            NEW_IMPORTANT_WEIGHTS_DIR = os.path.join(
-                IMPORTANT_WEIGHTS, run_name)
-            if not os.path.exists(NEW_IMPORTANT_WEIGHTS_DIR):
-                os.makedirs(NEW_IMPORTANT_WEIGHTS_DIR)
-            new_weight_file = os.path.join(
-                NEW_IMPORTANT_WEIGHTS_DIR, f"model_weights_{cur_level}.pt")
-            print(f"Goal reached, moving to the next level: {cur_level+1}")
-            for worker in trainer_obj.workers.remote_workers():
-                worker.foreach_env.remote(
-                    lambda env: env.set_task(cur_level+1))
+        # if epoch % args.checkpoint_freq == 0:
+        #     print("Saving checkpoints...")
+        #     NEW_WEIGHTS_DIR = os.path.join(WEIGHTS_DIR, run_name)
+        #     if not os.path.exists(NEW_WEIGHTS_DIR):
+        #         os.makedirs(NEW_WEIGHTS_DIR)
+        #     new_weight_file = os.path.join(
+        #         NEW_WEIGHTS_DIR, f"model_weights_{epoch}.pt")
+        #     torch.save(default_policy.model.state_dict(), new_weight_file)
+        #     weights_file = [os.path.join(WEIGHTS_DIR, w)
+        #                     for w in os.listdir(WEIGHTS_DIR)]
+        #     print("Done")
+        #     if len(weights_file) > args.keep_checkpoints_num:
+        #         print("Removing old checkpoints...")
+        #         oldest_file = min(weights_file, key=os.path.getctime)
+        #         os.remove(os.path.join(WEIGHTS_DIR, oldest_file))
+        #         print("Done")
+        # if next_level:
+        #     # save weights used to switch between levels to the important weights dir
+        #     NEW_IMPORTANT_WEIGHTS_DIR = os.path.join(
+        #         IMPORTANT_WEIGHTS, run_name)
+        #     if not os.path.exists(NEW_IMPORTANT_WEIGHTS_DIR):
+        #         os.makedirs(NEW_IMPORTANT_WEIGHTS_DIR)
+        #     new_weight_file = os.path.join(
+        #         NEW_IMPORTANT_WEIGHTS_DIR, f"model_weights_{cur_level}.pt")
+        #     print(f"Goal reached, moving to the next level: {cur_level + 1}")
+        #     for worker in trainer_obj.workers.remote_workers():
+        #         worker.foreach_env.remote(
+        #             lambda env: env.set_task(cur_level + 1))
