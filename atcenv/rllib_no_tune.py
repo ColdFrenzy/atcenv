@@ -18,8 +18,14 @@ if __name__ == "__main__":
     args = parse_args()
     CUR_DIR = os.path.abspath(os.path.join(__file__, os.pardir))
     WEIGHTS_DIR = os.path.join(CUR_DIR, "weights")
+    IMPORTANT_WEIGHTS = os.path.join(CUR_DIR, "important_weights")
+    LOG_DIR = os.path.join(CUR_DIR, "log_dir")
     if not os.path.exists(WEIGHTS_DIR):
         os.makedirs(WEIGHTS_DIR)
+    if not os.path.exists(IMPORTANT_WEIGHTS):
+        os.makedirs(IMPORTANT_WEIGHTS)
+    if not os.path.exists(LOG_DIR):
+        os.makedirs(LOG_DIR)
     ##########################
     #   Init ray with degub options
     ##########################
@@ -90,18 +96,22 @@ if __name__ == "__main__":
         if len(cur_level) > 0:
             cur_level = cur_level[0]
         print(f"evaluating environment with cur_level: {cur_level}")
-        env = CurriculumFlightEnv(
-            **config["evaluation_config"]["env_config"], cur_level=cur_level)
+
         ##################################################
         # SAVE MEDIA
         ##################################################
         if epoch % args.media_checkpoints_freq == 0:
+            env = CurriculumFlightEnv(
+                **config["evaluation_config"]["env_config"], cur_level=cur_level, reward_as_dict=True)
+            LOG_FILE = os.path.join(LOG_DIR, f"atc_challenge_{epoch}.log")
             eval_result, next_level = flight_custom_eval(
-                env, default_policy, config["evaluation_config"]["record_env"])
+                env, default_policy, config["evaluation_config"]["record_env"], LOG_FILE)
 
             result.update(eval_result)
             wdb_callback.log_media(result)
         else:
+            env = CurriculumFlightEnv(
+                **config["evaluation_config"]["env_config"], cur_level=cur_level)
             eval_result, next_level = flight_custom_eval_no_video(
                 env, default_policy, config["evaluation_duration"])
             result.update(eval_result)
@@ -123,6 +133,14 @@ if __name__ == "__main__":
                 os.remove(os.path.join(WEIGHTS_DIR, oldest_file))
                 print("Done")
         if next_level:
+            # save weights used to switch between levels to the important weights dir
+            NEW_IMPORTANT_WEIGHTS_DIR = os.path.join(
+                IMPORTANT_WEIGHTS, f"important_weights_{cur_level}.pt")
+            if not os.path.exists(NEW_IMPORTANT_WEIGHTS_DIR):
+                os.makedirs(NEW_IMPORTANT_WEIGHTS_DIR)
+            new_weight_file = os.path.join(
+                NEW_IMPORTANT_WEIGHTS_DIR, f"model_weights_{cur_level}.pt")
+            print(f"Goal reached, moving to the next level: {cur_level+1}")
             print(f"Goal reached, moving to the next level: {cur_level+1}")
             for worker in trainer_obj.workers.remote_workers():
                 worker.foreach_env.remote(

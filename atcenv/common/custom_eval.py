@@ -1,11 +1,35 @@
 import numpy as np
+import logging
 from collections import defaultdict
 from ray.rllib.utils import try_import_torch
 from atcenv.common.custom_gym_monitor import CustomGymMonitor
 torch, nn = try_import_torch()
 
 
-def flight_custom_eval(env, policy_to_evaluate, video_dir):
+def init_logger(file_path):
+    logger = logging.getLogger("ATC_CHALLENGE")
+
+    f_handler = logging.FileHandler(file_path, "w", "utf-8")
+    f_handler.setLevel(logging.DEBUG)
+    f_format = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    f_handler.setFormatter(f_format)
+
+    c_handler = logging.StreamHandler()
+    c_handler.setLevel(logging.WARN)
+    c_format = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+    c_handler.setFormatter(c_format)
+
+    logger.addHandler(f_handler)
+    logger.addHandler(c_handler)
+
+    logger.setLevel(logging.DEBUG)
+
+    return logger
+
+
+def flight_custom_eval(env, policy_to_evaluate, video_dir, log_file):
     """custom evaluation function. In this function we execute 2 policies on the
     same copy of the environment to compare their results.
     Args:
@@ -16,7 +40,7 @@ def flight_custom_eval(env, policy_to_evaluate, video_dir):
         metrics (dict): evaluation metrics dict.
         next_level (bool): true if the policy is good enough to skip to the next level
     """
-
+    logger = init_logger(log_file)
     metrics = {}
     env = CustomGymMonitor(
         env=env,
@@ -43,9 +67,16 @@ def flight_custom_eval(env, policy_to_evaluate, video_dir):
              for flight_id in env.flight_env.flights.keys()}
         seq_len = torch.tensor([1.])
     actions = {flight_id: None for flight_id in env.flight_env.flights.keys()}
-
+    actions_prob = {
+        flight_id: None for flight_id in env.flight_env.flights.keys()}
+    counter2 = 0
     with torch.no_grad():
         while not done["__all__"]:
+            logger.info(
+                f"\n#######################################################################\n"
+                f"#                          STEP {counter2}                                #\n"
+                f"#######################################################################\n"
+            )
             # add both the batch and the time dim to the observation returned by the env
             if model.name == "FlightActionMaskRNNModel":
                 for flight_id in env.flight_env.flights.keys():
@@ -57,19 +88,38 @@ def flight_custom_eval(env, policy_to_evaluate, video_dir):
                             h[flight_id][elem] = h[flight_id][elem].unsqueeze(
                                 0)
                 for flight_id in env.flight_env.flights.keys():
-                    actions[flight_id], h[flight_id] = model.forward_rnn(
+                    actions_prob[flight_id], h[flight_id] = model.forward_rnn(
                         obs[flight_id], h[flight_id], seq_len)
-                    actions[flight_id] = torch.argmax(actions[flight_id])
+                    actions[flight_id] = torch.argmax(actions_prob[flight_id])
             elif model.name == "FlightActionMaskModel":
                 for flight_id in env.flight_env.flights.keys():
                     for elem in obs[flight_id].keys():
                         obs[flight_id][elem] = torch.from_numpy(
                             obs[flight_id][elem]).float().unsqueeze(0)
                 for flight_id in env.flight_env.flights.keys():
-                    actions[flight_id], _ = model.forward(
+                    actions_prob[flight_id], _ = model.forward(
                         obs[flight_id], [], [])
-                    actions[flight_id] = torch.argmax(actions[flight_id])
+                    actions[flight_id] = torch.argmax(actions_prob[flight_id])
+                    logger.info(
+                    f"\n             ============ FLIGHT {flight_id} ============               \n"
+                    f"REWARDS: \n"
+                    f"      distance from target: {rew[flight_id]['distance_from_target_rew']}\n"
+                    f"      drift penalty: {rew[flight_id]['drift_rew']}\n"
+                    f"      target reached rew: {rew[flight_id]['target_reached_rew']}\n"
+                    f"OBSERVATIONS: \n"
+                    f"      fov: {obs[flight_id]['agents_in_fov']}\n"
+                    f"      velocity: {obs[flight_id]['velocity']}\n"
+                    f"      bearing: {obs[flight_id]['bearing']}\n"
+                    f"      distance_from_target: {obs[flight_id]['distance_from_target']}\n"
+                    f"      action_mask: {obs[flight_id]['action_mask']}\n"
+                    f"ACTIONS: \n"
+                    f"      chosen_action: {actions[flight_id]}\n"
+                    f"      actions_distrib: {actions_prob[flight_id]}\n"
+                    f"             ============================================               \n"
+                    )
             rew, obs, done, info = env.step(actions)
+            
+            counter2 += 1
             num_collisions2 += len(env.flight_env.conflicts)
     print(f"Default Policy collisions: {num_collisions2}")
     env.close()

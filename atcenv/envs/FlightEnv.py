@@ -220,9 +220,9 @@ class FlightEnv(MultiAgentEnv):
                 return True
             return False
         # WEIGHTS OF THE REWARDS
-        collision_weight = -0.1
+        collision_weight = -0.01
         dist_weight = 0.0  # - 1.0
-        target_reached_w = +100.0
+        target_reached_w = +10.0
         distance_from_optimal_trajectory_w = 0.0  # - 0.01
         drift_penalty_w = -0.1
         changed_angle_penalty_w = 0.0  # - 0.01
@@ -300,10 +300,15 @@ class FlightEnv(MultiAgentEnv):
                 angles:
                 dist: normalized distance (1 is max fov depth)
             """
-            left_angle = np.full(self.max_agent_seen, -1., dtype=np.float32)
-            right_angle = np.full(self.max_agent_seen, -1., dtype=np.float32)
-            angles = np.full(self.max_agent_seen, -1., dtype=np.float32)
-            dists = np.full(self.max_agent_seen, -1., dtype=np.float32)
+            # left_angle = np.full(self.max_agent_seen, -1., dtype=np.float32)
+            # right_angle = np.full(self.max_agent_seen, -1., dtype=np.float32)
+            # angles = np.full(self.max_agent_seen, -1., dtype=np.float32)
+            # dists = np.full(self.max_agent_seen, -1., dtype=np.float32)
+
+            left_angle = np.zeros(self.max_agent_seen, dtype=np.float32)
+            right_angle = np.zeros(self.max_agent_seen, dtype=np.float32)
+            angles = np.zeros(self.max_agent_seen, dtype=np.float32)
+            dists = np.zeros(self.max_agent_seen, dtype=np.float32)
 
             origin = f.position
             seen_agents_indices = self.flights_in_fov(i)
@@ -330,11 +335,16 @@ class FlightEnv(MultiAgentEnv):
                             right_angle[j] = 1.0 - angles[j]
                         else:
                             left_angle[j] = angles[j]
+                        right_angle[j] += 1
+                        left_angle[j] += 1
                         assert 0.0 <= angles[
                             j] <= 1.0, f"The FoV angle is invalid: {angles[j]}. The angle should be between [0,1]"
-                        dists[j] = math.dist([self.flights[seen_agent_idx].position.x,
+                        # dists[j] = math.dist([self.flights[seen_agent_idx].position.x,
+                        #                       self.flights[seen_agent_idx].position.y],
+                        #                      [origin.x, origin.y]) / f.fov_depth
+                        dists[j] = (math.dist([self.flights[seen_agent_idx].position.x,
                                               self.flights[seen_agent_idx].position.y],
-                                             [origin.x, origin.y]) / f.fov_depth
+                                              [origin.x, origin.y]) / f.fov_depth) + 1.0
 
                 else:
                     # set of points of all the agents in the fov
@@ -362,12 +372,17 @@ class FlightEnv(MultiAgentEnv):
                             right_angle[j] = 1.0 - angles[j]
                         else:
                             left_angle[j] = angles[j]
+
+                        right_angle[j] += 1
+                        left_angle[j] += 1
                         assert 0.0 <= angles[
                             j] <= 1.0, f"The FoV angle is invalid: {angles[j]}. The angle should be between [0,1]"
-                        dists[j] = math.dist([nearest_agent.x,
+                        # dists[j] = math.dist([nearest_agent.x,
+                        #                       nearest_agent.y],
+                        #                      [origin.x, origin.y]) / f.fov_depth
+                        dists[j] = (math.dist([nearest_agent.x,
                                               nearest_agent.y],
-                                             [origin.x, origin.y]) / f.fov_depth
-
+                                              [origin.x, origin.y]) / f.fov_depth) + 1.0
                         seen_agents.difference(nearest_agent)
             return left_angle, right_angle, dists
 
@@ -719,6 +734,10 @@ class FlightEnv(MultiAgentEnv):
             x, y = self.scaler(f.position.x, f.position.y, use_int=True)
             pygame.draw.circle(self.surf, color=color, center=(
                 x, y), radius=radius, width=1)
+            font = pygame.font.SysFont('arial', 50)
+            text = font.render(str(i), True, (0, 0, 0))
+            text = pygame.transform.flip(text, False, True)
+            self.surf.blit(text, (x, y))
 
             # add plan
             plan = LineString([f.position, f.target])
@@ -750,7 +769,7 @@ class FlightEnv(MultiAgentEnv):
             pygame.draw.line(self.surf, start_pos=x,
                              end_pos=y, color=GREEN, width=2)
 
-        self.surf = pygame.transform.flip(self.surf, False, True)
+        self.surf = pygame.transform.flip(self.surf, False,  True)
 
         if mode == "human":
             self.screen.blit(self.surf, (0, 0))
