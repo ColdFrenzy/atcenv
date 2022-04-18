@@ -4,8 +4,8 @@ early_terminate:
   type: hyperband
 method: bayes
 metric:
-  goal: maximize
-  name: mean_reward
+  goal: minimize
+  name: custom_metrics/sweep_metric_mean
 parameters:
     collision_weight:
         distribution: uniform

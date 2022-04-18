@@ -28,7 +28,8 @@ class LoggerWrapper(RayWrapper):
 
         )
         self.logging_env = dict(
-            reached_target=[]
+            reached_target=[],
+            steps=0,
         )
 
         self.logging_video = []
@@ -53,5 +54,7 @@ class LoggerWrapper(RayWrapper):
         non_zero_obs = sum([np.count_nonzero(x['agents_in_fov'])
                            for x in obs.values()])
         self.logging_obs['non_zero'].append(non_zero_obs)
+
+        self.logging_env['steps']+=1
 
         return obs, rew, done, info

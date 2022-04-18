@@ -84,13 +84,26 @@ class CurriculumCallbacks(DefaultCallbacks):
         episode.custom_metrics["non_zero_obs"] = float(
             np.asarray(env.logging_obs['non_zero']).mean())
         episode.custom_metrics["current_difficulty_level"] = level
-        #episode.hist_data["actions_track"] = env.logging_actions['track']
+        # episode.hist_data["actions_track"] = env.logging_actions['track']
 
         # get all the agents that reached the target
         done_ids = [v for k, v in env.flight_env.done.items()
                     if v and k != "__all__"]
         done_ids = len(done_ids) / len(env.flight_env.flights)
         episode.custom_metrics["reached_target"] = done_ids
+
+        ### custom metric for sweep
+        # reached target
+        sweep_metric = env.num_flights - len(env.logging_env['reached_target'])
+        sweep_metric /= env.num_flights
+        # conflicts
+        norm_conflicts = self.num_conflicts / 10
+        sweep_metric += norm_conflicts if norm_conflicts <= 1 else 1
+
+        # episode length
+        sweep_metric += env.logging_env['steps'] / 300
+
+        episode.custom_metrics["sweep_metric"] = sweep_metric
 
         self.num_conflicts = 0
 
