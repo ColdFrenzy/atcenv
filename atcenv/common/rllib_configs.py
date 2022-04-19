@@ -142,7 +142,7 @@ def ppo_configs(args):
         # Initial coefficient for KL divergence.
         "kl_coeff": 0.2,
         # Size of batches collected from each worker.
-        "rollout_fragment_length": 200 if args.debug else 500,
+        "rollout_fragment_length": 200 if args.debug else 800,
         # Number of timesteps collected for each SGD round. This defines the size
         # of each SGD epoch.
         "train_batch_size": 400 if args.debug else 4000,
@@ -208,7 +208,7 @@ def eval_configs(args):
         # ... using one evaluation worker (setting this to 0 will cause
         # evaluation to run on the local evaluation worker, blocking
         # training until evaluation is done).
-        "evaluation_num_workers": 1,
+        "evaluation_num_workers": 0,
         # Special evaluation config. Keys specified here will override
         # the same keys in the main config, but only for evaluation.
         "in_evaluation": True,
