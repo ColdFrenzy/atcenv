@@ -170,16 +170,16 @@ if __name__ == "__main__":
         ##################################################
         # SAVE MEDIA
         ##################################################
-        if epoch % args.media_checkpoints_freq == 0:
-            eval_result, next_level = flight_custom_eval(
-                env, default_policy, config["evaluation_config"]["record_env"])
-            result.update(eval_result)
-            wdb_callback.log_media(result)
-        else:
-            eval_result, next_level = flight_custom_eval_no_video(
-                env, default_policy, config["evaluation_duration"])
-            result.update(eval_result)
-            wdb_callback.log(result)
+        # if epoch % args.media_checkpoints_freq == 0:
+        #     eval_result, next_level = flight_custom_eval(
+        #         env, default_policy, config["evaluation_config"]["record_env"])
+        #     result.update(eval_result)
+        #     wdb_callback.log_media(result)
+        # else:
+        #     eval_result, next_level = flight_custom_eval_no_video(
+        #         env, default_policy, config["evaluation_duration"])
+        #     result.update(eval_result)
+        #     wdb_callback.log(result)
         ##################################################
         # SAVE CHECKPOINTS
         ##################################################
