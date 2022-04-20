@@ -1,3 +1,4 @@
+import numpy as np
 import ray as ray
 import os
 from regex import W
@@ -41,7 +42,7 @@ if __name__ == "__main__":
     ray.init(local_mode=True if args.debug else False,
              num_gpus=r_configs["num_gpus"],
              num_cpus=r_configs["num_cpus"],
-             log_to_driver=args.debug,
+             #log_to_driver=args.debug,
              )
     env_cls = get_env_cls()
     config = {

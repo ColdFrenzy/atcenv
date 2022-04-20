@@ -1,12 +1,16 @@
 import inspect
 import os
 
+import numpy as np
 import ray as ray
+import torch
 import wandb
 from ray.rllib.agents.ppo import PPOTrainer
 
 from atcenv.common.callbacks import CurriculumCallbacks
+from atcenv.common.custom_eval import flight_custom_eval, flight_custom_eval_no_video
 from atcenv.common.rllib_configs import multi_agent_configs, eval_configs, ppo_configs, model_configs, resources_configs
+from atcenv.common.utils import parse_args
 from atcenv.common.wandb_callbacks import WandbCallbacks
 from atcenv.envs import get_env_cls
 from atcenv.envs.CurriculumFlightEnv import CurriculumFlightEnv
@@ -37,20 +41,8 @@ hyperparams_defaults = dict(
 )
 
 if __name__ == "__main__":
-    class Args:
-        def __init__(self):
-            self.num_cpus = 6
-            self.num_gpus = 0
-            self.num_workers = 5
-            self.checkpoint_freq = 5
-            self.media_checkpoints_freq = 5
-            self.keep_checkpoints_num = 5
-            self.debug = False
-            self.env = CurriculumFlightEnv
-            self.cur_dir = os.path.abspath(os.path.join(__file__, os.pardir))
 
-
-    args = Args()
+    args = parse_args()
     CUR_DIR = os.path.abspath(os.path.join(__file__, os.pardir))
     WEIGHTS_DIR = os.path.join(CUR_DIR, "weights")
     IMPORTANT_WEIGHTS = os.path.join(CUR_DIR, "important_weights")
@@ -61,6 +53,11 @@ if __name__ == "__main__":
     ##########################
     #   Init ray with degub options
     ##########################
+    # for reproducibilty
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
     r_configs = resources_configs(args)
     ray.shutdown()
@@ -166,16 +163,16 @@ if __name__ == "__main__":
         ##################################################
         # SAVE MEDIA
         ##################################################
-        # if epoch % args.media_checkpoints_freq == 0:
-        #     eval_result, next_level = flight_custom_eval(
-        #         env, default_policy, config["evaluation_config"]["record_env"])
-        #     result.update(eval_result)
-        #     wdb_callback.log_media(result)
-        # else:
-        #     eval_result, next_level = flight_custom_eval_no_video(
-        #         env, default_policy, config["evaluation_duration"])
-        #     result.update(eval_result)
-        #     wdb_callback.log(result)
+        if epoch % args.media_checkpoints_freq == 0:
+            eval_result, next_level = flight_custom_eval(
+                env, default_policy, config["evaluation_config"]["record_env"])
+            result.update(eval_result)
+            wdb_callback.log_media(result)
+        else:
+            eval_result, next_level = flight_custom_eval_no_video(
+                env, default_policy, config["evaluation_duration"])
+            result.update(eval_result)
+            wdb_callback.log(result)
         ##################################################
         # SAVE CHECKPOINTS
         ##################################################
