@@ -138,7 +138,7 @@ def ppo_configs(args):
         # with a value function, see https://arxiv.org/pdf/1506.02438.pdf.
         "use_gae": True,
         # The GAE (lambda) parameter.
-        "lambda": 1.0,
+        "lambda": 0.99,
         # Initial coefficient for KL divergence.
         "kl_coeff": 0.2,
         # Size of batches collected from each worker.
@@ -176,7 +176,7 @@ def ppo_configs(args):
         # scale of the rewards. If your expected V is large, increase this.
         "vf_clip_param": 300.0,
         # If specified, clip the global norm of gradients by this amount.
-        "grad_clip": None,
+        "grad_clip": 5,
         # Target value for KL divergence.
         "kl_target": 0.01,
         # Whether to rollout "complete_episodes" or "truncate_episodes".

@@ -30,6 +30,7 @@ def parse_args():
     parser.add_argument('--config', action=ActionConfigFile)
     parser.add_argument('-debug', action="store_true")
     parser.add_argument('-cur_dir', default=os.getcwd())
+    parser.add_argument('-seed', default=42, type=int)
     # parser.add_class_arguments(FlightEnv, 'env')
     parser.add_class_arguments(CurriculumFlightEnv, 'env')
 

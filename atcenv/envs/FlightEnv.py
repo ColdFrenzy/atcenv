@@ -1,16 +1,16 @@
 """
 Environment module
 """
+import itertools as it
+from collections import defaultdict
 from copy import copy, deepcopy
-from typing import DefaultDict, Dict, List
+from typing import Dict, List
 
 import numpy as np
 import pygame
-import itertools as it
 from pygame import gfxdraw
-from collections import defaultdict
 from ray.rllib import MultiAgentEnv
-from shapely.geometry import LineString, MultiPoint, Point
+from shapely.geometry import MultiPoint
 from shapely.ops import nearest_points
 
 from atcenv.common.wind_utils import abs_compass
@@ -66,7 +66,7 @@ class FlightEnv(MultiAgentEnv):
                  screen_size=600,
                  stop_when_outside=True,
                  max_distance_from_target=10,
-                 reward_dict:Dict={},
+                 reward_dict: Dict = {},
                  **kwargs):
         """
         Initialise the environment.
@@ -135,7 +135,6 @@ class FlightEnv(MultiAgentEnv):
             drift_penalty_w=-0.1,
             changed_angle_penalty_w=0.0,
         )
-
 
         for k in rew_dict.keys():
             if k not in reward_dict.keys():
@@ -248,9 +247,9 @@ class FlightEnv(MultiAgentEnv):
 
         # WEIGHTS OF THE REWARDS
         collision_weight = self.reward_dict['collision_weight']
-        dist_weight = self.reward_dict['dist_weight'] # - 1.0
-        target_reached_w =self.reward_dict['target_reached_w']
-        distance_from_optimal_trajectory_w = self.reward_dict['distance_from_optimal_trajectory_w']# - 0.01
+        dist_weight = self.reward_dict['dist_weight']  # - 1.0
+        target_reached_w = self.reward_dict['target_reached_w']
+        distance_from_optimal_trajectory_w = self.reward_dict['distance_from_optimal_trajectory_w']  # - 0.01
         drift_penalty_w = self.reward_dict['drift_penalty_w']
         changed_angle_penalty_w = self.reward_dict['changed_angle_penalty_w']
 
@@ -273,6 +272,7 @@ class FlightEnv(MultiAgentEnv):
                         drift_rew * -drift_penalty_w)
                 if target_reached(flight):
                     rews[f_id]["target_reached_rew"] += target_reached_w
+                rews[f_id]["target_reached_rew"] = 0
 
             else:
                 rews[f_id] += target_dist(flight) * dist_weight
@@ -371,7 +371,7 @@ class FlightEnv(MultiAgentEnv):
                         #                       self.flights[seen_agent_idx].position.y],
                         #                      [origin.x, origin.y]) / f.fov_depth
                         dists[j] = (math.dist([self.flights[seen_agent_idx].position.x,
-                                              self.flights[seen_agent_idx].position.y],
+                                               self.flights[seen_agent_idx].position.y],
                                               [origin.x, origin.y]) / f.fov_depth) + 1.0
 
                 else:
@@ -409,7 +409,7 @@ class FlightEnv(MultiAgentEnv):
                         #                       nearest_agent.y],
                         #                      [origin.x, origin.y]) / f.fov_depth
                         dists[j] = (math.dist([nearest_agent.x,
-                                              nearest_agent.y],
+                                               nearest_agent.y],
                                               [origin.x, origin.y]) / f.fov_depth) + 1.0
                         seen_agents.difference(nearest_agent)
             return left_angle, right_angle, dists
@@ -572,8 +572,7 @@ class FlightEnv(MultiAgentEnv):
                 position = f.position
 
                 # get new position and advance one time step
-                f.position._set_coords(
-                    position.x + dx * self.dt, position.y + dy * self.dt)
+                f.position = Point(position.x + dx * self.dt, position.y + dy * self.dt)
 
     def step(self, actions: dict) -> Tuple[Dict, Dict, Dict, Dict]:
         """
@@ -797,7 +796,7 @@ class FlightEnv(MultiAgentEnv):
             pygame.draw.line(self.surf, start_pos=x,
                              end_pos=y, color=GREEN, width=2)
 
-        self.surf = pygame.transform.flip(self.surf, False,  True)
+        self.surf = pygame.transform.flip(self.surf, False, True)
 
         if mode == "human":
             self.screen.blit(self.surf, (0, 0))

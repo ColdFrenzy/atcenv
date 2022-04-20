@@ -1,19 +1,15 @@
-import ray as ray
-import os
-import wandb
-from copy import copy
-import torch
 import inspect
-from atcenv.envs.CurriculumFlightEnv import CurriculumFlightEnv
+import os
 
-from atcenv.common.wandb_callbacks import WandbCallbacks
-from atcenv.models.action_mask_model import FlightActionMaskModel, FlightActionMaskRNNModel
-from atcenv.common.callbacks import CurriculumCallbacks, MediaWandbLogger
-from atcenv.common.rllib_configs import multi_agent_configs, eval_configs, ppo_configs, model_configs, resources_configs
-from atcenv.common.utils import parse_args, curriculum_fn
-from atcenv.common.custom_eval import flight_custom_eval, flight_custom_eval_no_video
-from atcenv.envs import get_env_cls
+import ray as ray
+import wandb
 from ray.rllib.agents.ppo import PPOTrainer
+
+from atcenv.common.callbacks import CurriculumCallbacks
+from atcenv.common.rllib_configs import multi_agent_configs, eval_configs, ppo_configs, model_configs, resources_configs
+from atcenv.common.wandb_callbacks import WandbCallbacks
+from atcenv.envs import get_env_cls
+from atcenv.envs.CurriculumFlightEnv import CurriculumFlightEnv
 
 wandb.login()
 hyperparams_defaults = dict(

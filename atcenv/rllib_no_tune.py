@@ -30,6 +30,12 @@ if __name__ == "__main__":
     #   Init ray with degub options
     ##########################
 
+    # for reproducibilty
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+
     r_configs = resources_configs(args)
     ray.shutdown()
     ray.init(local_mode=True if args.debug else False,

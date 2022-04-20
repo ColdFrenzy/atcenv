@@ -57,7 +57,7 @@ def flight_custom_eval(env, policy_to_evaluate, video_dir, log_file):
         rew, obs, done, info = env.step(actions)
         num_collisions += len(env.flight_env.conflicts)
         counter += 1
-    print(f"No Move Policy collisions: {num_collisions}")
+    #print(f"No Move Policy collisions: {num_collisions}")
     done = {"__all__": False}
     num_collisions2 = 0
     obs = env.reset(random=False, config=env_config)
@@ -121,7 +121,7 @@ def flight_custom_eval(env, policy_to_evaluate, video_dir, log_file):
             
             counter2 += 1
             num_collisions2 += len(env.flight_env.conflicts)
-    print(f"Default Policy collisions: {num_collisions2}")
+    #print(f"Default Policy collisions: {num_collisions2}")
     env.close()
     # the closest to zero, the better it is
     metrics["num_of_collisions_with_no_actions"] = num_collisions
@@ -168,7 +168,7 @@ def flight_custom_eval_no_video(env, policy_to_evaluate, num_episode=1):
             rew, obs, done, info = env.step(actions)
             num_collisions += len(env.flight_env.conflicts)
             counter += 1
-        print(f"No Move Policy collisions: {num_collisions}")
+        #print(f"No Move Policy collisions: {num_collisions}")
         done = {"__all__": False}
         num_collisions2 = 0
         obs = env.reset(random=False, config=env_config)
@@ -209,7 +209,7 @@ def flight_custom_eval_no_video(env, policy_to_evaluate, num_episode=1):
                     episode_rew += rew[flight_id]
                 num_collisions2 += len(env.flight_env.conflicts)
         mean_reward += episode_rew
-        print(f"Default Policy collisions: {num_collisions2}")
+        #print(f"Default Policy collisions: {num_collisions2}")
         # the closest to zero, the better it is
         metrics["num_of_collisions_with_no_actions"] += num_collisions
         metrics["num_of_collisions_with_model"] += num_collisions2
