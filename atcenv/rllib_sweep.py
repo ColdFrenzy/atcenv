@@ -6,6 +6,7 @@ import ray as ray
 import torch
 import wandb
 from ray.rllib.agents.ppo import PPOTrainer
+from ray.rllib.models import ModelCatalog
 
 from atcenv.common.callbacks import CurriculumCallbacks
 from atcenv.common.custom_eval import flight_custom_eval, flight_custom_eval_no_video
@@ -14,6 +15,7 @@ from atcenv.common.utils import parse_args
 from atcenv.common.wandb_callbacks import WandbCallbacks
 from atcenv.envs import get_env_cls
 from atcenv.envs.CurriculumFlightEnv import CurriculumFlightEnv
+from atcenv.models.action_mask_model import FlightActionMaskModel
 
 wandb.login()
 hyperparams_defaults = dict(
@@ -66,6 +68,7 @@ if __name__ == "__main__":
              num_cpus=r_configs["num_cpus"],
              log_to_driver=args.debug,
              )
+
     env_cls = get_env_cls()
     config = {
         "env": env_cls,
@@ -96,6 +99,10 @@ if __name__ == "__main__":
     config.update(env_config)
     config.update(p_configs)
     config.update(m_configs)
+
+    # register model
+    model = FlightActionMaskModel
+    ModelCatalog.register_custom_model(model.name, FlightActionMaskModel)
 
     ##########################
     #   Define wandb callbacks

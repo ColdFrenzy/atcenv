@@ -48,6 +48,7 @@ class FlightActionMaskModel(TorchModelV2, nn.Module):
     """Parametric action model that handles the dot product and masking.
     If you invert the inheritance it doesn't work.
     """
+    name = "flight_model_mask"
 
     def __init__(
         self,
@@ -63,7 +64,6 @@ class FlightActionMaskModel(TorchModelV2, nn.Module):
         # super(FlightActionMaskModel, self).__init__(
         #     obs_space=obs_space, action_space=action_space, num_outputs=num_outputs, model_config=model_config, name=name  # ,*args, **kwargs
         # )
-        name = "FlightActionMaskModel"
         TorchModelV2.__init__(
             self, obs_space, action_space, num_outputs, model_config, name)
 
@@ -179,6 +179,8 @@ class FlightActionMaskModel(TorchModelV2, nn.Module):
 
 
 class FlightActionMaskRNNModel(TorchRNN, nn.Module):
+    name = "flight_rnn_model_mask"
+
     def __init__(self,
                  obs_space,
                  action_space,
@@ -188,7 +190,6 @@ class FlightActionMaskRNNModel(TorchRNN, nn.Module):
                  lstm_state_size=64,
                  *args,
                  **kwargs):
-        name = "FlightActionMaskRNNModel"
         TorchModelV2.__init__(
             self, obs_space, action_space, num_outputs, model_config, name)
 
