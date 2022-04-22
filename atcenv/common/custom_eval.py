@@ -62,7 +62,7 @@ def flight_custom_eval(env, policy_to_evaluate, video_dir, log_file):
     num_collisions2 = 0
     obs = env.reset(random=False, config=env_config)
     model = policy_to_evaluate.model
-    if model.name == "FlightActionMaskRNNModel":
+    if model.__class__.__name__ == "FlightActionMaskRNNModel":
         h = {flight_id: model.get_initial_state()
              for flight_id in env.flight_env.flights.keys()}
         seq_len = torch.tensor([1.])
@@ -78,7 +78,7 @@ def flight_custom_eval(env, policy_to_evaluate, video_dir, log_file):
                 f"#######################################################################\n"
             )
             # add both the batch and the time dim to the observation returned by the env
-            if model.name == "FlightActionMaskRNNModel":
+            if model.__class__.__name__ == "FlightActionMaskRNNModel":
                 for flight_id in env.flight_env.flights.keys():
                     for elem in obs[flight_id].keys():
                         obs[flight_id][elem] = torch.from_numpy(
@@ -91,7 +91,7 @@ def flight_custom_eval(env, policy_to_evaluate, video_dir, log_file):
                     actions_prob[flight_id], h[flight_id] = model.forward_rnn(
                         obs[flight_id], h[flight_id], seq_len)
                     actions[flight_id] = torch.argmax(actions_prob[flight_id])
-            elif model.name == "FlightActionMaskModel":
+            elif model.__class__.__name__ == "FlightActionMaskModel":
                 for flight_id in env.flight_env.flights.keys():
                     for elem in obs[flight_id].keys():
                         obs[flight_id][elem] = torch.from_numpy(
@@ -173,7 +173,7 @@ def flight_custom_eval_no_video(env, policy_to_evaluate, num_episode=1):
         num_collisions2 = 0
         obs = env.reset(random=False, config=env_config)
         model = policy_to_evaluate.model
-        if model.name == "FlightActionMaskRNNModel":
+        if model.__class__.__name__ == "FlightActionMaskRNNModel":
             h = {flight_id: model.get_initial_state()
                  for flight_id in env.flight_env.flights.keys()}
             seq_len = torch.tensor([1.])
@@ -182,7 +182,7 @@ def flight_custom_eval_no_video(env, policy_to_evaluate, num_episode=1):
         with torch.no_grad():
             while not done["__all__"]:
                 # add both the batch and the time dim to the observation returned by the env
-                if model.name == "FlightActionMaskRNNModel":
+                if model.__class__.__name__ == "FlightActionMaskRNNModel":
                     for flight_id in env.flight_env.flights.keys():
                         for elem in obs[flight_id].keys():
                             obs[flight_id][elem] = torch.from_numpy(
@@ -195,7 +195,7 @@ def flight_custom_eval_no_video(env, policy_to_evaluate, num_episode=1):
                         actions[flight_id], h[flight_id] = model.forward_rnn(
                             obs[flight_id], h[flight_id], seq_len)
                         actions[flight_id] = torch.argmax(actions[flight_id])
-                elif model.name == "FlightActionMaskModel":
+                elif model.__class__.__name__ == "FlightActionMaskModel":
                     for flight_id in env.flight_env.flights.keys():
                         for elem in obs[flight_id].keys():
                             obs[flight_id][elem] = torch.from_numpy(

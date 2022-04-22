@@ -1,6 +1,8 @@
 import numpy as np
 import ray as ray
 import os
+
+from ray.rllib.models import ModelCatalog
 from regex import W
 import torch
 from atcenv.envs.CurriculumFlightEnv import CurriculumFlightEnv
@@ -69,6 +71,12 @@ if __name__ == "__main__":
     config.update(env_config)
     config.update(p_configs)
     config.update(m_configs)
+
+    # register model
+    model = FlightActionMaskModel
+    ModelCatalog.register_custom_model(model.__name__, FlightActionMaskModel)
+    model = FlightActionMaskRNNModel
+    ModelCatalog.register_custom_model(model.__name__, FlightActionMaskRNNModel)
 
     ##########################
     #   Define wandb callbacks

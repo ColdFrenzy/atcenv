@@ -15,7 +15,7 @@ from atcenv.common.utils import parse_args
 from atcenv.common.wandb_callbacks import WandbCallbacks
 from atcenv.envs import get_env_cls
 from atcenv.envs.CurriculumFlightEnv import CurriculumFlightEnv
-from atcenv.models.action_mask_model import FlightActionMaskModel
+from atcenv.models.action_mask_model import FlightActionMaskModel, FlightActionMaskRNNModel
 
 wandb.login()
 hyperparams_defaults = dict(
@@ -101,7 +101,9 @@ if __name__ == "__main__":
 
     # register model
     model = FlightActionMaskModel
-    ModelCatalog.register_custom_model(model.name, FlightActionMaskModel)
+    ModelCatalog.register_custom_model(model.__name__, FlightActionMaskModel)
+    model = FlightActionMaskRNNModel
+    ModelCatalog.register_custom_model(model.__name__, FlightActionMaskRNNModel)
 
     ##########################
     #   Define wandb callbacks
