@@ -2,7 +2,6 @@
 Environment module
 """
 import itertools as it
-from collections import defaultdict
 from copy import copy, deepcopy
 from typing import Dict, List
 
@@ -247,52 +246,44 @@ class FlightEnv(MultiAgentEnv):
 
         # WEIGHTS OF THE REWARDS
         collision_weight = self.reward_dict['collision_weight']
-        dist_weight = self.reward_dict['dist_weight']  # - 1.0
+        dist_weight = self.reward_dict['dist_weight']
         target_reached_w = self.reward_dict['target_reached_w']
-        distance_from_optimal_trajectory_w = self.reward_dict['distance_from_optimal_trajectory_w']  # - 0.01
+        distance_from_optimal_trajectory_w = self.reward_dict['distance_from_optimal_trajectory_w']
         drift_penalty_w = self.reward_dict['drift_penalty_w']
         changed_angle_penalty_w = self.reward_dict['changed_angle_penalty_w']
 
-        if self.reward_as_dict:
-            rews = {k: defaultdict(float) for k in self.flights.keys()}
-        else:
-            rews = {k: 0 for k in self.flights.keys()}
+        # start with an empty reward dict
+        reward_dict = dict(
+            distance_from_target_rew=0,
+            distance_from_traj_rew=0,
+            angle_changed_rew=0,
+            drift_rew=0,
+            target_reached_rew=0,
+            collision_rew=0,
+
+        )
+        rews = {k: reward_dict for k in self.flights.keys()}
 
         for f_id, flight in self.flights.items():
-            if self.reward_as_dict:
-                rews[f_id]["distance_from_target_rew"] += target_dist(
-                    flight) * dist_weight
-                rews[f_id]["distance_from_traj_rew"] += flight.distance_from_optimal_trajectory * \
-                                                        distance_from_optimal_trajectory_w
-                rews[f_id]["angle_changed_rew"] += self.changed_angle_penalty[f_id] * \
-                                                   changed_angle_penalty_w
-                drift_rew = min_max_normalizer(flight.drift,
-                                               0, 2 * math.pi)
+            rews[f_id]["distance_from_target_rew"] += target_dist(
+                flight) * dist_weight
+            rews[f_id]["distance_from_traj_rew"] += flight.distance_from_optimal_trajectory * \
+                                                    distance_from_optimal_trajectory_w
+            rews[f_id]["angle_changed_rew"] += self.changed_angle_penalty[f_id] * \
+                                               changed_angle_penalty_w
+            drift_rew = min_max_normalizer(flight.drift, 0, math.pi)
+            rews[f_id]["drift_rew"] += drift_rew * drift_penalty_w
                 rews[f_id]["drift_rew"] += (drift_rew * drift_penalty_w) if drift_rew >= 0 else (
                         drift_rew * -drift_penalty_w)
-                if target_reached(flight):
-                    rews[f_id]["target_reached_rew"] += target_reached_w
-                rews[f_id]["target_reached_rew"] = 0
-
-            else:
-                rews[f_id] += target_dist(flight) * dist_weight
-                rews[f_id] += flight.distance_from_optimal_trajectory * \
-                              distance_from_optimal_trajectory_w
-                rews[f_id] += self.changed_angle_penalty[f_id] * \
-                              changed_angle_penalty_w
-                drift_rew = min_max_normalizer(flight.drift,
-                                               0, 2 * math.pi)
-                rews[f_id] += (drift_rew * drift_penalty_w) if drift_rew >= 0 else (
-                        drift_rew * -drift_penalty_w)
-                if target_reached(flight):
-                    rews[f_id] += target_reached_w
+                rews[f_id]["target_reached_rew"] += target_reached_w
 
         # collision penalty
         for c in self.conflicts:
-            if self.reward_as_dict:
-                rews[c]["collision_rew"] += collision_weight
-            else:
-                rews[c] += collision_weight
+            rews[c]["collision_rew"] += collision_weight
+
+        # collapse dict information
+        if not self.reward_as_dict:
+            rews = {k: sum(v.values()) for k, v in rews.items()}
 
         return rews
 
