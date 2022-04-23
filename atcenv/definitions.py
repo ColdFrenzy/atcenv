@@ -65,7 +65,7 @@ class Flight:
     target: Point
     optimal_airspeed: float
     flight_id: int
-    fov_depth: float = 60*u.nm
+    fov_depth: float = 60 * u.nm
     fov_angle: float = math.pi / 2
 
     airspeed: float = field(init=False)
@@ -82,7 +82,7 @@ class Flight:
         self.optimal_trajectory = LineString(
             [(self.position.x, self.position.y), (self.target.x, self.target.y)])
 
-    @ property
+    @property
     def bearing(self) -> float:
         """
         Bearing from current position to target [0, 2PI]
@@ -102,14 +102,14 @@ class Flight:
         # https://stackoverflow.com/questions/1311049/how-to-map-atan2-to-degrees-0-360
         return (compass + u.circle) % u.circle
 
-    @ property
+    @property
     def distance_from_optimal_trajectory(self) -> float:
         """
         Compute the distance from the optimal trajectory
         """
         return self.position.distance(self.optimal_trajectory)
 
-    @ property
+    @property
     def heading_prediction(self, dt: Optional[float] = 120) -> Point:
         """
         Predicts the future position after dt seconds related to the heading direction (wind effect not included)
@@ -120,7 +120,7 @@ class Flight:
 
     # Implementare l'HEADING per la visualizzazione --> !!!!!!!!!!!!!!!!!!!!!!!!
 
-    @ property
+    @property
     def fov(self) -> Polygon:
         """
         Returns the field of view of the given flight
@@ -146,7 +146,7 @@ class Flight:
         return Polygon(fov_vertices)
         ##########################################################
 
-    @ property
+    @property
     def components(self) -> Tuple:
         """
         X and Y Speed components (in kt)
@@ -157,7 +157,7 @@ class Flight:
 
         return dx, dy
 
-    @ property
+    @property
     def distance(self) -> float:
         """
         Current distance to the target (in meters)
@@ -165,19 +165,17 @@ class Flight:
         """
         return self.position.distance(self.target)
 
-    @ property
+    @property
     def drift(self) -> float:
         """
         Drift angle (difference between track and bearing) to the target
         drift is between [-PI, PI]
         :return:
         """
-        drift = self.bearing - self.track
+        drift = abs(self.bearing - self.track)
 
         if drift > math.pi:
-            return -(u.circle - drift)
-        elif drift < -math.pi:
-            return (u.circle + drift)
+            return drift - math.pi
         else:
             return drift
 
@@ -218,7 +216,7 @@ class Flight:
 
         return cls(position, target, airspeed, flight_id)
 
-    @ classmethod
+    @classmethod
     def fixed(cls, flight_pos: Point, target_pos: Point, airspeed: float, airspace: Airspace, flight_id: int):
         """
         Creates a fixed flight

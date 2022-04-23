@@ -273,8 +273,7 @@ class FlightEnv(MultiAgentEnv):
                                                changed_angle_penalty_w
             drift_rew = min_max_normalizer(flight.drift, 0, math.pi)
             rews[f_id]["drift_rew"] += drift_rew * drift_penalty_w
-                rews[f_id]["drift_rew"] += (drift_rew * drift_penalty_w) if drift_rew >= 0 else (
-                        drift_rew * -drift_penalty_w)
+            if target_reached(flight):
                 rews[f_id]["target_reached_rew"] += target_reached_w
 
         # collision penalty
