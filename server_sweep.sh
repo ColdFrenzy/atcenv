@@ -17,5 +17,5 @@ export SDL_AUDIODRIVER='dsp'
 
 #running the actual code
 echo "Starting the process..."
-wandb agent dizzibus/atcenv-atcenv/wog7ym63  
+wandb agent dizzibus/atc-sweep/jldyyvru
 

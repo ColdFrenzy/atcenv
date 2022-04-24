@@ -6,7 +6,8 @@ method: bayes
 metric:
   goal: minimize
   name: custom_metrics/sweep_metric_mean
-project: atc-challenge-sweep
+project: atc-sweep
+
 parameters:
     collision_weight:
         distribution: uniform

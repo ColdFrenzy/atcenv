@@ -11,7 +11,6 @@ from ray.rllib.models import ModelCatalog
 from atcenv.common.callbacks import CurriculumCallbacks
 from atcenv.common.custom_eval import flight_custom_eval, flight_custom_eval_no_video
 from atcenv.common.rllib_configs import multi_agent_configs, eval_configs, ppo_configs, model_configs, resources_configs
-from atcenv.common.utils import parse_args
 from atcenv.common.wandb_callbacks import WandbCallbacks
 from atcenv.envs import get_env_cls
 from atcenv.envs.CurriculumFlightEnv import CurriculumFlightEnv
@@ -42,9 +41,25 @@ hyperparams_defaults = dict(
     ),
 )
 
+
+class Args:
+    def __init__(self):
+        self.num_cpus = 6
+        self.num_gpus = 0
+        self.num_workers = 5
+        self.checkpoint_freq = 5
+        self.media_checkpoints_freq = 5
+        self.keep_checkpoints_num = 5
+        self.debug = False
+        self.seed = 42
+        self.env = CurriculumFlightEnv
+        self.cur_dir = os.path.abspath(os.path.join(__file__, os.pardir))
+
+
 if __name__ == "__main__":
 
-    args = parse_args()
+    args = Args()
+
     CUR_DIR = os.path.abspath(os.path.join(__file__, os.pardir))
     WEIGHTS_DIR = os.path.join(CUR_DIR, "weights")
     IMPORTANT_WEIGHTS = os.path.join(CUR_DIR, "important_weights")
@@ -113,8 +128,9 @@ if __name__ == "__main__":
         video_dir=e_configs['evaluation_config']['record_env'],
         mode="offline" if args.debug else "online",
         config=hyperparams_defaults,
-        project="atc-challenge-sweep"
+        project="atc-sweep",
     )
+
     # Access all hyperparameter values through wandb.config
     sweep_config = wandb.config
     run_name = wandb.run.name
