@@ -420,6 +420,7 @@ class FlightEnv(MultiAgentEnv):
                 d = 1.0
             left_angle, right_angle, dists = polar_distance(flight)
             obs = np.concatenate([left_angle, right_angle, dists])
+            obs=dists
 
             assert 0 <= v <= 1, f"Airspeed is not in range [0,1]. Got '{v}'"
             assert 0 <= b <= 1, f"Bearing is not in range [0,1]. Got '{b}'"
