@@ -1,23 +1,20 @@
-import wandb
-import argparse
 import os
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 import wandb
 
 
 class WandbCallbacks():
     def __init__(
-        self,
-        project: Optional[str] = None,
-        run_id: Optional[str] = None,
-        mode: Optional[str] = None,
-        group: Optional[str] = None,
-        video_dir: Optional[str] = None,
-        config: Optional[dict] = None,
-        **kwargs,
+            self,
+            project: Optional[str] = None,
+            run_id: Optional[str] = None,
+            mode: Optional[str] = None,
+            group: Optional[str] = None,
+            video_dir: Optional[str] = None,
+            config: Optional[dict] = None,
+            **kwargs,
     ):
-
         wandb.init(
             project=project,
             id=run_id,
@@ -31,6 +28,12 @@ class WandbCallbacks():
     def log(self, result: Dict):
         """Logs only the results"""
         new_result = return_results(result)
+
+        # remove max/min metrics
+        new_result = {k: v for k, v in new_result.items() if "max" not in k and "min" not in k}
+        # remove "mean" string from metrics
+        new_result = {k.replace("_mean", ""): v for k, v in new_result.items()}
+
         wandb.log(new_result)
 
     def log_media(self, result: Dict):
