@@ -5,7 +5,7 @@ early_terminate:
 method: bayes
 metric:
   goal: minimize
-  name: custom_metrics/sweep_metric_mean
+  name: custom_metrics/sweep_metric
   target: 0.0
 project: atc-sweep
 
