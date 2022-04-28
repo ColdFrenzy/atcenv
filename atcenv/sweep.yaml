@@ -21,17 +21,17 @@ parameters:
         min: 0.8
 
     hidden_layer_1_size:
-      distribution: uniform
+      distribution: int_uniform
       max: 512
       min: 32
 
     hidden_layer_2_size:
-      distribution: uniform
+      distribution: int_uniform
       max: 512
       min: 32
 
     hidden_layer_3_size:
-      distribution: uniform
+      distribution: int_uniform
       max: 512
       min: 32
 
@@ -41,7 +41,7 @@ parameters:
         min: 0.00001
 
     sgd_iterations:
-        distribution: uniform
+        distribution: int_uniform
         max: 32
         min: 2
 
