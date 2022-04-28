@@ -1,0 +1,42 @@
+early_terminate:
+  eta: 3
+  min_iter: 10
+  type: hyperband
+method: bayes
+metric:
+  goal: minimize
+  name: custom_metrics/sweep_metric_mean
+project: atc-sweep
+
+parameters:
+    collision_weight:
+        distribution: uniform
+        max: 0
+        min: -0.2
+
+    dist_weight:
+        distribution: uniform
+        max:  0
+        min: -2.0
+
+    target_reached_w:
+        distribution: uniform
+        max: 100.0
+        min: 10.0
+
+    distance_from_optimal_trajectory_w:
+        distribution: uniform
+        max: 0
+        min: -0.02
+
+    drift_penalty_w:
+        distribution: uniform
+        max: 0
+        min: -0.2
+
+    changed_angle_penalty_w:
+        distribution: uniform
+        max: 0
+        min: -0.25
+
+program: atcenv/rllib_sweep.py

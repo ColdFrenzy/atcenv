@@ -6,37 +6,58 @@ method: bayes
 metric:
   goal: minimize
   name: custom_metrics/sweep_metric_mean
+  target: 0.0
 project: atc-sweep
 
 parameters:
-    collision_weight:
-        distribution: uniform
-        max: 0
-        min: -0.2
+    dropout:
+        distribution: log_uniform
+        max: 0.5
+        min: 0
 
-    dist_weight:
+    gae_lambda:
         distribution: uniform
-        max:  0
-        min: -2.0
+        max:  1.0
+        min: 0.8
 
-    target_reached_w:
-        distribution: uniform
-        max: 100.0
-        min: 10.0
+    hidden_layer_1_size:
+      distribution: uniform
+      max: 512
+      min: 32
 
-    distance_from_optimal_trajectory_w:
-        distribution: uniform
-        max: 0
-        min: -0.02
+    hidden_layer_2_size:
+      distribution: uniform
+      max: 512
+      min: 32
 
-    drift_penalty_w:
-        distribution: uniform
-        max: 0
-        min: -0.2
+    hidden_layer_3_size:
+      distribution: uniform
+      max: 512
+      min: 32
 
-    changed_angle_penalty_w:
+    learn_rate:
         distribution: uniform
-        max: 0
-        min: -0.25
+        max: 0.01
+        min: 0.00001
+
+    sgd_iterations:
+        distribution: uniform
+        max: 32
+        min: 2
+
+    clip_param:
+        distribution: uniform
+        max: 5
+        min: 0.1
+
+    batch_size:
+      values:
+        - 16
+        - 32
+        - 64
+        - 128
+        - 512
+
+
 
 program: atcenv/rllib_sweep.py
