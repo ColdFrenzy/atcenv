@@ -11,7 +11,7 @@ project: atc-sweep
 
 parameters:
     dropout:
-        distribution: log_uniform
+        distribution: uniform
         max: 0.5
         min: 0
 
