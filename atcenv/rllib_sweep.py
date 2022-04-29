@@ -189,7 +189,8 @@ if __name__ == "__main__":
         ##################################################
         if epoch % args.media_checkpoints_freq == 0:
             eval_result, next_level = flight_custom_eval(
-                env, default_policy, config["evaluation_config"]["record_env"])
+                env, default_policy, config["evaluation_config"]["record_env"],
+                log_file=config['evaluation_config']['record_logger'])
             result.update(eval_result)
             wdb_callback.log_media(result)
         else:

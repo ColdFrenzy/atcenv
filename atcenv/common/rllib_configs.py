@@ -222,6 +222,7 @@ def eval_configs(args):
             # Set to False for not recording anything.
             # "record_env": "videos",
             "record_env": f"{args.cur_dir}/videos",
+            "record_logger": f"{args.cur_dir}/videos/logs.log",
             # Render the env while evaluating.
             # Note that this will always only render the 1st RolloutWorker's
             # env and only the 1st sub-env in a vectorized env.
