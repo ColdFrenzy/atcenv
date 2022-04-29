@@ -46,7 +46,7 @@ def flight_custom_eval(env, policy_to_evaluate, video_dir, log_file):
         env=env,
         directory=video_dir,
         video_callable=lambda x: True,
-        force=False)
+        force=True)
     obs, env_config = env.reset(random=True, return_init=True)
     done = {"__all__": False}
     counter = 0
@@ -100,23 +100,23 @@ def flight_custom_eval(env, policy_to_evaluate, video_dir, log_file):
                     actions_prob[flight_id], _ = model.forward(
                         obs[flight_id], [], [])
                     actions[flight_id] = torch.argmax(actions_prob[flight_id])
-                    logger.info(
-                    f"\n             ============ FLIGHT {flight_id} ============               \n"
-                    f"REWARDS: \n"
-                    f"      distance from target: {rew[flight_id]['distance_from_target_rew']}\n"
-                    f"      drift penalty: {rew[flight_id]['drift_rew']}\n"
-                    f"      target reached rew: {rew[flight_id]['target_reached_rew']}\n"
-                    f"OBSERVATIONS: \n"
-                    f"      fov: {obs[flight_id]['agents_in_fov']}\n"
-                    f"      velocity: {obs[flight_id]['velocity']}\n"
-                    f"      bearing: {obs[flight_id]['bearing']}\n"
-                    f"      distance_from_target: {obs[flight_id]['distance_from_target']}\n"
-                    f"      action_mask: {obs[flight_id]['action_mask']}\n"
-                    f"ACTIONS: \n"
-                    f"      chosen_action: {actions[flight_id]}\n"
-                    f"      actions_distrib: {actions_prob[flight_id]}\n"
-                    f"             ============================================               \n"
-                    )
+                    # logger.info(
+                    # f"\n             ============ FLIGHT {flight_id} ============               \n"
+                    # f"REWARDS: \n"
+                    # f"      distance from target: {rew[flight_id]['distance_from_target_rew']}\n"
+                    # f"      drift penalty: {rew[flight_id]['drift_rew']}\n"
+                    # f"      target reached rew: {rew[flight_id]['target_reached_rew']}\n"
+                    # f"OBSERVATIONS: \n"
+                    # f"      fov: {obs[flight_id]['agents_in_fov']}\n"
+                    # f"      velocity: {obs[flight_id]['velocity']}\n"
+                    # f"      bearing: {obs[flight_id]['bearing']}\n"
+                    # f"      distance_from_target: {obs[flight_id]['distance_from_target']}\n"
+                    # f"      action_mask: {obs[flight_id]['action_mask']}\n"
+                    # f"ACTIONS: \n"
+                    # f"      chosen_action: {actions[flight_id]}\n"
+                    # f"      actions_distrib: {actions_prob[flight_id]}\n"
+                    # f"             ============================================               \n"
+                    # )
             rew, obs, done, info = env.step(actions)
             
             counter2 += 1
