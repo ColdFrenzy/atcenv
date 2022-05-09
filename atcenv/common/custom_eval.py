@@ -54,7 +54,7 @@ def flight_custom_eval(env, policy_to_evaluate, video_dir, log_file):
     # no move policy
     actions = {flight_id: 4 for flight_id in env.flight_env.flights.keys()}
     while not done["__all__"]:
-        rew, obs, done, info = env.step(actions)
+        obs, rew, done, info = env.step(actions)
         num_collisions += len(env.flight_env.conflicts)
         counter += 1
     print(f"No Move Policy collisions: {num_collisions}")
@@ -72,15 +72,12 @@ def flight_custom_eval(env, policy_to_evaluate, video_dir, log_file):
     counter2 = 0
     with torch.no_grad():
         while not done["__all__"]:
-            logger.info(
-                f"\n#######################################################################\n"
-                f"#                          STEP {counter2}                                #\n"
-                f"#######################################################################\n"
-            )
             # add both the batch and the time dim to the observation returned by the env
             if model.name == "FlightActionMaskRNNModel":
                 for flight_id in env.flight_env.flights.keys():
                     for elem in obs[flight_id].keys():
+                        if env.flight_env.done[flight_id]:
+                            continue
                         obs[flight_id][elem] = torch.from_numpy(
                             obs[flight_id][elem]).float().unsqueeze(0).unsqueeze(0)
                     for elem in range(len(h[flight_id])):
@@ -88,38 +85,54 @@ def flight_custom_eval(env, policy_to_evaluate, video_dir, log_file):
                             h[flight_id][elem] = h[flight_id][elem].unsqueeze(
                                 0)
                 for flight_id in env.flight_env.flights.keys():
+                    if env.flight_env.done[flight_id]:
+                        continue
                     actions_prob[flight_id], h[flight_id] = model.forward_rnn(
                         obs[flight_id], h[flight_id], seq_len)
                     actions[flight_id] = torch.argmax(actions_prob[flight_id])
             elif model.name == "FlightActionMaskModel":
                 for flight_id in env.flight_env.flights.keys():
+                    if env.flight_env.done[flight_id]:
+                        continue
                     for elem in obs[flight_id].keys():
                         obs[flight_id][elem] = torch.from_numpy(
                             obs[flight_id][elem]).float().unsqueeze(0)
                 for flight_id in env.flight_env.flights.keys():
+                    if env.flight_env.done[flight_id]:
+                        continue
                     actions_prob[flight_id], _ = model.forward(
                         obs[flight_id], [], [])
                     actions[flight_id] = torch.argmax(actions_prob[flight_id])
-                    logger.info(
-                    f"\n             ============ FLIGHT {flight_id} ============               \n"
+
+            obs, rew, done, info = env.step(actions)
+            counter2 += 1
+            logger.info(
+                f"\n#######################################################################\n"
+                f"#                          STEP {counter2}                                   #\n"
+                f"#######################################################################\n"
+            )
+            for flight_id in env.flight_env.flights.keys():
+                if env.flight_env.done[flight_id]:
+                    continue
+                logger.info(
+                    f"\n             ============ FLIGHT  ============               \n"
                     f"REWARDS: \n"
-                    f"      distance from target: {rew[flight_id]['distance_from_target_rew']}\n"
+                    f"      collision penalty: {rew[flight_id]['collision_rew']}\n"
                     f"      drift penalty: {rew[flight_id]['drift_rew']}\n"
                     f"      target reached rew: {rew[flight_id]['target_reached_rew']}\n"
                     f"OBSERVATIONS: \n"
-                    f"      fov: {obs[flight_id]['agents_in_fov']}\n"
+                    # f"      fov: {obs[flight_id]['agents_in_fov']}\n"
+                    f"      track: {obs[flight_id]['track']}\n"
                     f"      velocity: {obs[flight_id]['velocity']}\n"
                     f"      bearing: {obs[flight_id]['bearing']}\n"
+                    # f"      drift: {obs[flight_id]['drift']}\n"
                     f"      distance_from_target: {obs[flight_id]['distance_from_target']}\n"
                     f"      action_mask: {obs[flight_id]['action_mask']}\n"
                     f"ACTIONS: \n"
                     f"      chosen_action: {actions[flight_id]}\n"
                     f"      actions_distrib: {actions_prob[flight_id]}\n"
                     f"             ============================================               \n"
-                    )
-            rew, obs, done, info = env.step(actions)
-            
-            counter2 += 1
+                )
             num_collisions2 += len(env.flight_env.conflicts)
     print(f"Default Policy collisions: {num_collisions2}")
     env.close()
@@ -165,7 +178,7 @@ def flight_custom_eval_no_video(env, policy_to_evaluate, num_episode=1):
         # no move policy
         actions = {flight_id: 4 for flight_id in env.flight_env.flights.keys()}
         while not done["__all__"]:
-            rew, obs, done, info = env.step(actions)
+            obs, rew, done, info = env.step(actions)
             num_collisions += len(env.flight_env.conflicts)
             counter += 1
         print(f"No Move Policy collisions: {num_collisions}")
@@ -184,6 +197,8 @@ def flight_custom_eval_no_video(env, policy_to_evaluate, num_episode=1):
                 # add both the batch and the time dim to the observation returned by the env
                 if model.name == "FlightActionMaskRNNModel":
                     for flight_id in env.flight_env.flights.keys():
+                        if env.flight_env.done[flight_id]:
+                            continue
                         for elem in obs[flight_id].keys():
                             obs[flight_id][elem] = torch.from_numpy(
                                 obs[flight_id][elem]).float().unsqueeze(0).unsqueeze(0)
@@ -192,19 +207,27 @@ def flight_custom_eval_no_video(env, policy_to_evaluate, num_episode=1):
                                 h[flight_id][elem] = h[flight_id][elem].unsqueeze(
                                     0)
                     for flight_id in env.flight_env.flights.keys():
+                        if env.flight_env.done[flight_id]:
+                            continue
                         actions[flight_id], h[flight_id] = model.forward_rnn(
                             obs[flight_id], h[flight_id], seq_len)
                         actions[flight_id] = torch.argmax(actions[flight_id])
                 elif model.name == "FlightActionMaskModel":
                     for flight_id in env.flight_env.flights.keys():
+                        if env.flight_env.done[flight_id]:
+                            continue
                         for elem in obs[flight_id].keys():
+                            if env.flight_env.done[flight_id]:
+                                continue
                             obs[flight_id][elem] = torch.from_numpy(
                                 obs[flight_id][elem]).float().unsqueeze(0)
                     for flight_id in env.flight_env.flights.keys():
+                        if env.flight_env.done[flight_id]:
+                            continue
                         actions[flight_id], _ = model.forward(
                             obs[flight_id], [], [])
                         actions[flight_id] = torch.argmax(actions[flight_id])
-                rew, obs, done, info = env.step(actions)
+                obs, rew, done, info = env.step(actions)
                 for flight_id in rew.keys():
                     episode_rew += rew[flight_id]
                 num_collisions2 += len(env.flight_env.conflicts)

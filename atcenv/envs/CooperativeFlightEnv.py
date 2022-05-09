@@ -3,9 +3,7 @@ Environment module
 """
 from copy import copy, deepcopy
 from typing import DefaultDict, Dict, List
-from collections import OrderedDict
 
-import gym
 import numpy as np
 import pygame
 import itertools as it
@@ -64,14 +62,12 @@ class FlightEnv(MultiAgentEnv):
                  max_episode_len: Optional[int] = 300,
                  min_distance: Optional[float] = 5.,
                  distance_init_buffer: Optional[float] = 5.,
-                 max_agent_seen: Optional[int] = 3,  # 3
                  wind_speed: Optional[float] = 0,
                  wind_dir: Optional[str] = 'NW3',
                  reward_as_dict: Optional[bool] = False,
                  screen_size=600,
                  stop_when_outside=True,
                  max_distance_from_target=10,
-                 use_drift=False,
                  ** kwargs):
         """
         Initialise the environment.
@@ -87,14 +83,12 @@ class FlightEnv(MultiAgentEnv):
         :param max_episode_len: maximum episode length (in number of steps)
         :param min_distance: pairs of flights which distance is < min_distance are considered in conflict (in nm)
         :param distance_init_buffer: distance factor used when initialising the enviroment to avoid flights close to conflict and close to the target
-        :param max_agent_seen: maximum number of closest agents to consider in the partial observation
         :param wind_speed: wind speed (in kt)
         :param wind_dir: cardinal direction of the wind 
         :param reward_as_dict: if True, the reward is returned as a dict of the individual reward components. Useful for debugging
         :param screen_size: size of the screen 
         :param stop_when_outside: if True, agent is done when outside the Airspace and when its distance from target is > max_distance_from_target
         :param max_distance_from_target: only considered when stop_when_outside is True
-        :param use_drift: use the drift angle as observation
         :param kwargs: other arguments of your custom environment
         """
         self.num_flights = num_flights
@@ -105,14 +99,13 @@ class FlightEnv(MultiAgentEnv):
         self.min_distance = min_distance * u.nm
         self.max_episode_len = max_episode_len
         self.distance_init_buffer = distance_init_buffer
-        self.max_agent_seen = max_agent_seen
+
         self.dt = dt
         self.wind_speed = wind_speed * u.kt
         self.wind_dir = wind_dir
         self.reward_as_dict = reward_as_dict
         self.stop_when_outside = stop_when_outside
         self.max_distance_from_target = max_distance_from_target * u.nm
-        self.use_drift = use_drift
 
         # tolerance to consider that the target has been reached (in meters)
         self.tol = self.max_speed * 1.05 * self.dt
@@ -122,11 +115,6 @@ class FlightEnv(MultiAgentEnv):
         self.surf = None
         self.isopen = True
         self.screen_size = screen_size
-        # Distance between the furthest points in the airspace
-        # max distance is the true max_distance between the Airspace bounding box
-        self.max_distance = None
-        # max screen distance is used for scaling the rendering
-        self.max_screen_distance = None
 
         self.airspace = None
         self.flights = {}  # list of flights
@@ -144,26 +132,11 @@ class FlightEnv(MultiAgentEnv):
         # action_space = [(-5.0, -5.0), (-5.0, 0.0), (-5.0, 5.0), ..., (5.0, 5.0)]
         self.action_list = list(it.product(
             self.yaw_angles, self.accelleration))
-        self.action_space = gym.spaces.Discrete(len(self.action_list))
-
-        # =============================================================================
-        # OBSERVATIONS
-        # =============================================================================
-        obs_space = {  # OrderedDict({
-            "velocity": gym.spaces.Box(low=0, high=1, shape=(1,)),
-            "bearing": gym.spaces.Box(low=0, high=1, shape=(1,)),
-            "distance_from_target": gym.spaces.Box(low=0, high=1, shape=(1,)),
-            "track": gym.spaces.Box(low=0, high=1, shape=(1,)),
-            "action_mask": gym.spaces.Box(
-                low=0.0, high=1.0, shape=(len(self.action_list),))
-        }
-        if self.max_agent_seen > 0:
-            obs_space["agents_in_fov"] = gym.spaces.Box(
-                low=0, high=2, shape=(3 * self.max_agent_seen,))
-        if self.use_drift:
-            obs_space["drift"] = gym.spaces.Box(
-                low=-0.5, high=0.5, shape=(1,))
-        self.observation_space = gym.spaces.Dict(obs_space)
+        # Distance between the furthest points in the airspace
+        # max distance is the true max_distance between the Airspace bounding box
+        self.max_distance = None
+        # max screen distance is used for scaling the rendering
+        self.max_screen_distance = None
 
     def resolution(self, actions: Dict) -> None:
         """
@@ -213,9 +186,6 @@ class FlightEnv(MultiAgentEnv):
             rews = {k: 0 for k in self.flights.keys()}
 
         for f_id, flight in self.flights.items():
-            if self.done[f_id]:
-                rews.pop(f_id)
-                continue
             if self.reward_as_dict:
                 rews[f_id]["distance_from_target_rew"] += target_dist(
                     flight, self.max_distance) * dist_weight
@@ -276,8 +246,6 @@ class FlightEnv(MultiAgentEnv):
         observations = {}
 
         for i, flight in self.flights.items():
-            if self.done[i]:
-                continue
             observations[i] = {}
             # compute observations and normalizations
             # speed normalized between min and max speed
@@ -291,6 +259,11 @@ class FlightEnv(MultiAgentEnv):
                 flight.distance, 0, self.max_distance)
             if d > 1.0:
                 d = 1.0
+            # drift is between -0.5 and 0.5
+            # drift = min_max_normalizer(flight.drift, 0, 2*math.pi)
+            # TODO uncomment
+            # left_angle, right_angle, dists = self.polar_distance(flight)
+            # obs = np.concatenate([left_angle, right_angle, dists])
 
             assert 0 <= v <= 1, f"Airspeed is not in range [0,1]. Got '{v}'"
             assert 0 <= b <= 1, f"Bearing is not in range [0,1]. Got '{b}'"
@@ -301,14 +274,9 @@ class FlightEnv(MultiAgentEnv):
             observations[i]['velocity'] = np.asarray([v])
             observations[i]['bearing'] = np.asarray([b])
             observations[i]['track'] = np.asarray([t])
-            drift = min_max_normalizer(flight.drift, 0, 2*math.pi)
-            if self.max_agent_seen > 0:
-                # drift is between -0.5 and 0.5
-                left_angle, right_angle, dists = self.polar_distance(flight)
-                obs = np.concatenate([left_angle, right_angle, dists])
-                observations[i]['agents_in_fov'] = obs
-            if self.use_drift:
-                observations[i]['drift'] = np.asarray([drift])
+            # TODO: unconmment
+            # observations[i]['agents_in_fov'] = obs
+            # observations[i]['drift'] = np.asarray([drift])
             observations[i]['distance_from_target'] = np.asarray([d])
             observations[i]['action_mask'] = np.ones(len(self.action_list))
             observations[i]['action_mask'][self.get_mask(i)] = 0.0
@@ -549,14 +517,15 @@ class FlightEnv(MultiAgentEnv):
         # update conflict set
         self.update_conflicts()
 
+        # update done set
+        self.update_done()
+
         # compute reward
         rew = self.reward()
 
         # compute observation
         obs = self.observation()
 
-        # update done set
-        self.update_done()
         # increase steps counter
         self.i += 1
 
@@ -573,7 +542,7 @@ class FlightEnv(MultiAgentEnv):
 
         done = copy(self.done)
 
-        return obs, rew, done, {}
+        return rew, obs, done, {}
 
     def reset(self, random=True, return_init=False, config: dict = None) -> Tuple[Dict, Optional[Dict]]:
         """

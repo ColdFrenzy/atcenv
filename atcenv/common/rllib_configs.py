@@ -114,8 +114,8 @@ def model_configs(args):
                 # the same structure for both actor and critic network, otherwise the first
                 # element are the layers of the critic and the second are the layers of
                 # the actor. if share_weights=True we use the first element as shared architecture.
-                "shared_fc_layers": ([64, 32, 40],),
-                "fc_layers": ([], [])
+                "shared_fc_layers": ([256, 124, 64],),  # ([256, 124, 64], ),
+                "fc_layers": ([], [])  # ([64, 16, 32], [64, 32])
             },
             # Name of a custom action distribution to use.
             "custom_action_dist": None,
@@ -138,9 +138,9 @@ def ppo_configs(args):
         # with a value function, see https://arxiv.org/pdf/1506.02438.pdf.
         "use_gae": True,
         # The GAE (lambda) parameter.
-        "lambda": 1.0,
+        "lambda": 0.99,  # 1.0,
         # Initial coefficient for KL divergence.
-        "kl_coeff": 0.2,
+        "kl_coeff": 0.0,  # 0.1,  # 0.2,
         # Size of batches collected from each worker.
         "rollout_fragment_length": 200 if args.debug else 500,
         # Number of timesteps collected for each SGD round. This defines the size
@@ -148,37 +148,37 @@ def ppo_configs(args):
         "train_batch_size": 400 if args.debug else 4000,
         # Total SGD batch size across all devices for SGD. This defines the
         # minibatch size within each epoch.
-        "sgd_minibatch_size": 25 if args.debug else 256,
+        "sgd_minibatch_size": 50 if args.debug else 256,  # 25 if args.debug else 256
         # Whether to shuffle sequences in the batch when training (recommended).
         "shuffle_sequences": True,
         # Number of SGD iterations in each outer loop (i.e., number of epochs to
         # execute per train batch).
-        "num_sgd_iter": 30,
+        "num_sgd_iter": 20,   # 30
         # Stepsize of SGD.
-        "lr": 5e-4,
+        "lr": 1e-5,  # 5e-4,
         # Learning rate schedule.
         "lr_schedule": None,
         # Coefficient of the value function loss. IMPORTANT: you must tune this if
         # you set vf_share_layers=True inside your model's config.
-        "vf_loss_coeff": 1.0,
+        "vf_loss_coeff": 0.1,  # 1.0,
         "model": {
             # Share layers for value function. If you set this to True, it's
             # important to tune vf_loss_coeff.
             "vf_share_layers": False,
         },
         # Coefficient of the entropy regularizer.
-        "entropy_coeff": 0.01,
+        "entropy_coeff": 0.0,  # 0.01,  # 0.01
         # Decay schedule for the entropy regularizer.
         "entropy_coeff_schedule": None,
         # PPO clip parameter.
         "clip_param": 0.3,
         # Clip param for the value function. Note that this is sensitive to the
         # scale of the rewards. If your expected V is large, increase this.
-        "vf_clip_param": 300.0,
+        "vf_clip_param": 100,  # 300.0,
         # If specified, clip the global norm of gradients by this amount.
-        "grad_clip": None,
+        "grad_clip": 5,  # None
         # Target value for KL divergence.
-        "kl_target": 0.01,
+        "kl_target": 0.0,  # 0.01,
         # Whether to rollout "complete_episodes" or "truncate_episodes".
         "batch_mode": "complete_episodes",  # "truncate_episodes",
         # Which observation filter to apply to the observation.
@@ -211,7 +211,7 @@ def eval_configs(args):
         "evaluation_num_workers": 1,
         # Special evaluation config. Keys specified here will override
         # the same keys in the main config, but only for evaluation.
-        "in_evaluation": True,
+        "in_evaluation": False,
         # Choose the evaluation duration unit "episodes" or "timesteps"
         "evaluation_duration_unit": "episodes",
         "evaluation_config": {
@@ -227,7 +227,6 @@ def eval_configs(args):
             # env and only the 1st sub-env in a vectorized env.
             "render_env": False,
             "env_config": {
-                "config": None,
                 "max_episode_len": 300,
                 "stop_when_outside": False,
             }

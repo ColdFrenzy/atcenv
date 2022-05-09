@@ -1,18 +1,20 @@
+from logging import Logger
 import ray as ray
 import os
 from regex import W
 import torch
-from atcenv.envs.CurriculumFlightEnv import CurriculumFlightEnv
+import random
 
-from atcenv.common.wandb_callbacks import WandbCallbacks
 from atcenv.models.action_mask_model import FlightActionMaskModel, FlightActionMaskRNNModel
-from atcenv.common.callbacks import CurriculumCallbacks, MediaWandbLogger
+from atcenv.common.wandb_callbacks import WandbCallbacks
+from atcenv.common.callbacks import CurriculumCallbacks
 from atcenv.common.rllib_configs import multi_agent_configs, eval_configs, ppo_configs, model_configs, resources_configs
-from atcenv.common.utils import parse_args, curriculum_fn
+from atcenv.common.utils import parse_args
 from atcenv.common.custom_eval import flight_custom_eval, flight_custom_eval_no_video
-from atcenv.envs import get_env_cls
 from ray.rllib.agents.ppo import PPOTrainer
+from atcenv.envs.FlightEnvLoggerWrapper import FlightEnvLoggerWrapper
 
+random.seed(7)
 
 if __name__ == "__main__":
     args = parse_args()
@@ -37,7 +39,7 @@ if __name__ == "__main__":
              num_cpus=r_configs["num_cpus"],
              log_to_driver=args.debug,
              )
-    env_cls = get_env_cls()
+    env_cls = FlightEnvLoggerWrapper
     config = {
         "env": env_cls,
         "framework": "torch",
@@ -66,13 +68,13 @@ if __name__ == "__main__":
     ##########################
     #   Define wandb callbacks
     ##########################
-
     wdb_callback = WandbCallbacks(
         video_dir=e_configs['evaluation_config']['record_env'],
         project="atcenv",
         # group="PPOTrainer",
         mode="offline" if args.debug else "online",
         resume=False,
+        name="only_target_reached_rew-no_drift_obs-no_agent_in_fov-no_entropy-no_kl"
     )
 
     ##########################
@@ -83,7 +85,7 @@ if __name__ == "__main__":
     num_epochs = 1000
     wandb_watch = False
     # START TRAINING
-    for epoch in range(1, num_epochs+1):
+    for epoch in range(0, num_epochs):
         print(f"Epoch {epoch} of {num_epochs}")
         result = trainer_obj.train()
         default_policy = trainer_obj.get_policy("default")
@@ -100,8 +102,8 @@ if __name__ == "__main__":
         ##################################################
         # SAVE MEDIA
         ##################################################
-        if epoch % args.media_checkpoints_freq == 0:
-            env = CurriculumFlightEnv(
+        if epoch % args.media_checkpoints_freq == 0 and epoch != 0:
+            env = FlightEnvLoggerWrapper(
                 **config["evaluation_config"]["env_config"], cur_level=cur_level, reward_as_dict=True)
             LOG_FILE = os.path.join(LOG_DIR, f"atc_challenge_{epoch}.log")
             eval_result, next_level = flight_custom_eval(
@@ -110,7 +112,7 @@ if __name__ == "__main__":
             result.update(eval_result)
             wdb_callback.log_media(result)
         else:
-            env = CurriculumFlightEnv(
+            env = FlightEnvLoggerWrapper(
                 **config["evaluation_config"]["env_config"], cur_level=cur_level)
             eval_result, next_level = flight_custom_eval_no_video(
                 env, default_policy, config["evaluation_duration"])
@@ -119,7 +121,7 @@ if __name__ == "__main__":
         ##################################################
         # SAVE CHECKPOINTS
         ##################################################
-        if epoch % args.checkpoint_freq == 0:
+        if epoch % args.checkpoint_freq == 0 and epoch != 0:
             print("Saving checkpoints...")
             new_weight_file = os.path.join(
                 WEIGHTS_DIR, f"model_weights_{epoch}.pt")

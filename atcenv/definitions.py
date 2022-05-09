@@ -131,15 +131,26 @@ class Flight:
         center_x, center_y = self.position.x, self.position.y
         fov_vertices.append(Point(center_x, center_y))
         track = self.track
-        point_1_x = center_x + (self.fov_depth *
-                                (math.cos((math.pi - (track + math.pi / 2)) - self.fov_angle / 2)))
-        point_1_y = center_y + (self.fov_depth *
-                                (math.sin((math.pi - (track + math.pi / 2)) - self.fov_angle / 2)))
+        # point_1_x = center_x + (self.fov_depth *
+        #                         (math.cos((math.pi - (track + math.pi / 2)) - self.fov_angle / 2)))
+        # point_1_y = center_y + (self.fov_depth *
+        #                         (math.sin((math.pi - (track + math.pi / 2)) - self.fov_angle / 2)))
+        # fov_vertices.append(Point(point_1_x, point_1_y))
+        # point_2_x = center_x + (self.fov_depth *
+        #                         (math.cos((math.pi - (track + math.pi / 2)) + self.fov_angle / 2)))
+        # point_2_y = center_y + (self.fov_depth *
+        #                         (math.sin((math.pi - (track + math.pi / 2)) + self.fov_angle / 2)))
+        # fov_vertices.append(Point(point_2_x, point_2_y))
+        # just visualize the plane having y instead of x and x instead of y
+        point_1_x = center_x + \
+            (self.fov_depth * math.sin(track - (self.fov_angle/2)))
+        point_1_y = center_y + \
+            (self.fov_depth * math.cos(track - (self.fov_angle/2)))
         fov_vertices.append(Point(point_1_x, point_1_y))
-        point_2_x = center_x + (self.fov_depth *
-                                (math.cos((math.pi - (track + math.pi / 2)) + self.fov_angle / 2)))
-        point_2_y = center_y + (self.fov_depth *
-                                (math.sin((math.pi - (track + math.pi / 2)) + self.fov_angle / 2)))
+        point_2_x = center_x + \
+            (self.fov_depth * math.sin(track + (self.fov_angle/2)))
+        point_2_y = center_y + \
+            (self.fov_depth * math.cos(track + (self.fov_angle/2)))
         fov_vertices.append(Point(point_2_x, point_2_y))
 
         ##########################################################
@@ -168,7 +179,7 @@ class Flight:
     @ property
     def drift(self) -> float:
         """
-        Drift angle (difference between track and bearing) to the target
+        Drift angle: difference between bearing and track
         drift is between [-PI, PI]
         :return:
         """

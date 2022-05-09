@@ -99,7 +99,7 @@ if __name__ == "__main__":
             counter += 1
             env.render(mode="human")
             # rews += sum(rew.values())/len(rew.keys())
-            time.sleep(0.05)
+            time.sleep(0.5)
             # input("Press Enter")
 
     env.close()

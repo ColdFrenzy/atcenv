@@ -16,7 +16,7 @@ class CurriculumFlightEnv(MultiAgentEnv):  # , TaskSettableEnv):
 
     metadata = {'render.modes': ['rgb_array']}
 
-    def __init__(self, config: EnvContext = None, max_episode_len: Optional[int] = 300,
+    def __init__(self, env_context: EnvContext = None, max_episode_len: Optional[int] = 300,
                  stop_when_outside: Optional[bool] = False, cur_level: Optional[int] = 1, reward_as_dict: Optional[bool] = False):
         self.LEVELS = [{"min_area": 50 * 50, "max_area": 100*100, "num_flights": 3},
                        {"min_area": 80 * 80, "max_area": 120*120,
@@ -41,11 +41,15 @@ class CurriculumFlightEnv(MultiAgentEnv):  # , TaskSettableEnv):
         self.flight_env = None
         self._make_flight_env()  # create the flightenv
         self.switch_env = False
+        self.action_list = self.flight_env.action_list
         # Variables needed from the wrappers
         self.action_list = self.flight_env.action_list
         self.max_agent_seen = self.flight_env.max_agent_seen
         self.i = 0
         self.num_flights = self.flight_env.num_flights
+
+        self.action_space = self.flight_env.action_space
+        self.observation_space = self.flight_env.observation_space
 
     def reset(self, **kwargs):
         # reset and eventually update important data
@@ -56,10 +60,10 @@ class CurriculumFlightEnv(MultiAgentEnv):  # , TaskSettableEnv):
         return self.flight_env.reset(**kwargs)
 
     def step(self, action):
-        r, s, d, i = self.flight_env.step(action)
+        s, r, d, i = self.flight_env.step(action)
         self.i = self.flight_env.i
 
-        return r, s, d, i
+        return s, r, d, i
 
     def render(self, mode=None) -> None:
         """Tries to render the environment."""
@@ -73,12 +77,10 @@ class CurriculumFlightEnv(MultiAgentEnv):  # , TaskSettableEnv):
         """Implement this to sample n random tasks."""
         return [random.randint(1, len(self.LEVELS)) for _ in range(n_tasks)]
 
-    # @ override(TaskSettableEnv)
     def get_task(self):
         """Implement this to get the current task (curriculum level)."""
         return self.cur_level
 
-    # @ override(TaskSettableEnv)
     def set_task(self, task):
         """Implement this to set the task (curriculum level) for this env."""
         self.cur_level = task

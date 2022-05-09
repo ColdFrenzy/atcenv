@@ -1,24 +1,24 @@
 from typing import Dict, Tuple, Optional
 
 import numpy as np
+from .CurriculumFlightEnv import CurriculumFlightEnv
 
-from atcenv.envs.RayWrapper import RayWrapper
 
+class FlightEnvLoggerWrapper(CurriculumFlightEnv):
+    """Compute additional information to log about the environment."""
 
-class LoggerWrapper(RayWrapper):
-
-    def __init__(self, env_context, **kwargs):
+    def __init__(self, env_context=None, **kwargs):
         """
         Init used for ray support
         """
-        super().__init__(env_context)
+        super().__init__(env_context, **kwargs)
 
         self.logging_actions = []
         self.logging_obs = {}
         self.logging_env = {}
         self.logging_video = []
 
-    def reset(self) -> Dict:
+    def reset(self, **kwargs) -> Dict:
         self.logging_actions = dict(
             accel=[],
             track=[]
@@ -33,10 +33,11 @@ class LoggerWrapper(RayWrapper):
 
         self.logging_video = []
 
-        return super(LoggerWrapper, self).reset()
+        return super(FlightEnvLoggerWrapper, self).reset(**kwargs)
 
     def step(self, actions: Dict) -> Tuple[Dict, Dict, Dict, Dict]:
-        obs, rew, done, info = super(LoggerWrapper, self).step(actions)
+        obs, rew, done, info = super(
+            FlightEnvLoggerWrapper, self).step(actions)
 
         # log mean actions
         accel = [self.action_list[x][1]
@@ -50,8 +51,9 @@ class LoggerWrapper(RayWrapper):
         self.logging_actions['track'].append(track)
 
         # log non zero observations
-        non_zero_obs = sum([np.count_nonzero(x['agents_in_fov'])
-                           for x in obs.values()])
-        self.logging_obs['non_zero'].append(non_zero_obs)
+        # TODO: unconmment
+        # non_zero_obs = sum([np.count_nonzero(x['agents_in_fov'])
+        #                    for x in obs.values()])
+        # self.logging_obs['non_zero'].append(non_zero_obs)
 
         return obs, rew, done, info

@@ -4,13 +4,10 @@ from jsonargparse import ActionConfigFile
 from jsonargparse import ArgumentParser
 
 from atcenv.envs import FlightEnv
-from atcenv.envs import CurriculumFlightEnv
+from atcenv.envs.CurriculumFlightEnv import CurriculumFlightEnv
 
 
 def parse_args():
-    """
-
-    """
     parser = ArgumentParser(
         prog='Conflict resolution environment',
         description='Basic conflict resolution environment for training policies with reinforcement learning',
@@ -23,6 +20,7 @@ def parse_args():
     parser.add_argument('--num_gpus', type=int, default=0)
     parser.add_argument('--num_workers', type=int, default=6)
     parser.add_argument('--checkpoint_freq', type=int, default=5)
+    parser.add_argument('--run_name', type=str, default="")
     parser.add_argument('--keep_checkpoints_num', type=int,
                         default=5)  # keep last n checkpoints
     parser.add_argument('--media_checkpoints_freq', type=int,
