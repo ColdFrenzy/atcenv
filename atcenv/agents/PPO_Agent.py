@@ -76,7 +76,8 @@ class PPO_Agent:
         logs["curr_log_probs"].append(mean_fn(curr_log_probs))
         logs["old_log_probs"].append(mean_fn(log_probs))
         logs["returns"].append(mean_fn(returns))
-        logs["adv_targ"].append(mean_fn(values))
+        logs["values"].append(mean_fn(values))
+        logs["adv_targ"].append(mean_fn(adv_targ))
 
         single_log_prob = log_probs.gather(-1, actions)
         single_curr_log_prob = curr_log_probs.gather(-1, actions)

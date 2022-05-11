@@ -111,14 +111,6 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-# logs
-log_dir/
-
-# wandb log
-atcenv/wandb/
-# tensorboard logs
-tensorboard/
-
 # Environments
 .env
 .venv
@@ -159,3 +151,26 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 .idea/
+
+atcenv/wandb/
+
+wandb/
+
+videos/
+
+atcenv/videos/
+
+atcenv/videos_for_presentation/
+
+atcenv/modifiche_rllib.txt
+
+atcenv/weights
+
+atcenv/important_weights
+
+atcenv/log_dir/
+.vscode/launch.json
+
+discrete_main.py
+
+Images/

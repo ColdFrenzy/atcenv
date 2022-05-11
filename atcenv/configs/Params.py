@@ -14,15 +14,13 @@ class Params:
     # =============================================================================
     # DIRECTORIES
     # =============================================================================
-    WORKING_DIR = os.getcwd().split("atcenv")[0]
-    WORKING_DIR = os.path.join(WORKING_DIR, "atcenv", "atcenv")
-    LOG_DIR = os.path.join(WORKING_DIR, "log_dir")
-    EVAL_DIR = os.path.join(LOG_DIR, "eval")
-    WANDB_DIR = os.path.join(LOG_DIR, "wandb")
-    TENSORBOARD_DIR = os.path.join(LOG_DIR, "tensorboard")
-    MODEL_LOG_DIR = os.path.join(LOG_DIR, "model_log")
-    MODEL_LOGGER_FILE = os.path.join(
-        MODEL_LOG_DIR, "model_log.log")
+    CUR_DIR = os.path.join(os.path.dirname(__file__), os.pardir)
+    LOG_DIR = os.path.join(CUR_DIR, "log_dir")
+    EVAL_DIR = os.path.join(CUR_DIR, "evaluation")
+    VIDEO_DIR = os.path.join(CUR_DIR, "videos")
+    WANDB_DIR = os.path.join(CUR_DIR, "wandb")
+    WEIGHTS_DIR = os.path.join(LOG_DIR, "weights")
+    IMPORTANT_WEIGHTS = os.path.join(CUR_DIR, "important_weights")
 
     # =============================================================================
     # TRAINING
@@ -37,12 +35,14 @@ class Params:
     # number of episode used for evaluating the model
     eval_num_episodes = 10
     # number of elements on which the algorithm performs a learning step
-    minibatch = 32  # 64
+    minibatch = 256  # 32
+    # Number of SGD iterations in each outer loop (i.e., number of epochs to
+    # execute per train batch).
+    num_sgd_iter = 20
     # number of episodes to collect in each rollout
     num_episodes = 2  # 4
-    batch_size = 64
+    batch_size = 4000  # 64
     framework = "torch"
-    epochs = 1000
 
     # =============================================================================
     # WANDB LOGS
@@ -51,7 +51,6 @@ class Params:
     train_log_steps = 5
     val_log_step = 5
     project_name = "atc_challenge"
-    opts = {}
 
     # =============================================================================
     # ENVIRONMENT
@@ -66,13 +65,9 @@ class Params:
     min_distance = 5.
     distance_init_buffer = 5.
     max_agent_seen = 3
-    yaw_angles = [-5.0, 0.0, 5.0]
-    accelleration = [-5.0, 0.0, 5.0]
-    action_list = list(it.product(
-        range(len(yaw_angles)), range(len(accelleration))))
-    # relative distance from the closest "max_agent_seen" + drift angle +
-    # distance from the target
-    state_space_shape = 2*max_agent_seen + 2
+    accelleration = [-2.0, 0.0, 2.0]
+    yaw_angles = [-3.0, 0.0, 3.0]
+
     # =============================================================================
     # MULTIAGENT
     # =============================================================================
@@ -81,7 +76,7 @@ class Params:
     # =============================================================================
     #  OPTIMIZER
     # =============================================================================
-    lr = 3e-4
+    lr = 1e-5  # 3e-4
     alpha = 0.99
     max_grad_norm = 5
     eps = 1e-5
@@ -89,19 +84,20 @@ class Params:
     # =============================================================================
     # ALGO PARAMETERS
     # =============================================================================
-    gamma = 0.998
+    gamma = 0.95  # 0.99
     gae_lambda = 0.95
-    ppo_clip_param = 0.1
+    ppo_clip_param = 0.3
     clip_value_loss = False
     # Clip param for the value function. Note that this is sensitive to the
     # scale of the rewards. If your expected V is large, increase this.
-    vf_clip_param = 10.0
+    vf_clip_param = 100.0
     # Loss
     # Coefficient of the value function loss. IMPORTANT: you must tune this if
     # you set actor and critic networks share weights (from rllib ppo
     # implementation)
-    value_loss_coef = 1  # [0.5, 1]
-    entropy_coef = 0.01  # [0.5, 0.1]
+    value_loss_coef = 0.1  # [0.5, 1]
+    entropy_coef = 0.  # [0.01, 0.5, 0.1]
+    kl_coeff = 0.0  # 0.1
 
     # =============================================================================
     # MODEL PARAMETERS
@@ -112,7 +108,7 @@ class Params:
     # the same structure for both actor and critic network, otherwise the first
     # element are the layers of the critic and the second are the layers of
     # the actor. if share_weights=True we use the first element as shared architecture.
-    shared_fc_layers = ([128, 64, 32],)
+    shared_fc_layers = ([64, 32, 40], )  # ([128, 64, 32],)
     fc_layers = ([], [])
     # use recurrent neural network
     use_recurrent = False
@@ -156,10 +152,8 @@ class Params:
         """
 
         att = self.__get_attributes()
-
         """Create the parser to capture CLI arguments."""
         parser = argparse.ArgumentParser()
-
         # for every attribute add an arg instance
         for k, v in att.items():
             if isinstance(v, bool):
@@ -195,11 +189,9 @@ class Params:
 
         return attributes
 
-    def get_rollout_configs(self):
+    def get_rollout_configs(self, debug=False):
         rollout_configs = dict(
             num_steps=self.max_episode_len*self.num_episodes,
-            obs_shape=self.state_space_shape,
-            num_actions=len(self.action_list),
             num_agents=self.num_flights,
             minibatch=self.minibatch,
             gamma=self.gamma,
@@ -207,7 +199,7 @@ class Params:
         )
         return rollout_configs
 
-    def get_ppo_configs(self):
+    def get_ppo_configs(self, debug=False):
         ppo_configs = dict(
             lr=self.lr,
             eps=self.eps,
@@ -220,7 +212,7 @@ class Params:
         )
         return ppo_configs
 
-    def get_env_config(self):
+    def get_env_config(self, debug=False):
         env_config = dict(
             num_flights=self.num_flights,
             dt=self.dt,
@@ -234,15 +226,11 @@ class Params:
             max_agent_seen=self.max_agent_seen,
             yaw_angles=self.yaw_angles,
             accelleration=self.accelleration,
-            action_list=self.action_list,
-            state_space_shape=self.state_space_shape
         )
         return env_config
 
-    def get_model_configs(self):
+    def get_model_configs(self, debug=False):
         model_configs = dict(
-            input_shape=self.state_space_shape,
-            action_shape=len(self.action_list),
             share_weights=self.share_weights,
             shared_fc_layers=self.shared_fc_layers,
             fc_layers=self.fc_layers,
@@ -251,27 +239,26 @@ class Params:
         )
         return model_configs
 
-    def get_callback_configs(self):
+    def get_callback_configs(self, debug=False):
         callback_configs = dict(
             train_log_step=self.train_log_steps,
             val_log_step=self.val_log_step,
             project=self.project_name,
-            opts=self.opts,
             horizon=self.max_episode_len,
             out_dir=self.WANDB_DIR,
+            video_dir=self.VIDEO_DIR,
             debug=self.debug,
-            hyperparams=self.__dict__
         )
         return callback_configs
 
-    def get_trainer_configs(self):
+    def get_trainer_configs(self, debug=False):
         trainer_configs = dict(
             num_agents=self.num_flights,
             num_steps=self.max_episode_len,
             num_episodes=self.num_episodes,
             device=self.device,
             learning_epochs=self.learning_epochs,
-            out_path=self.MODEL_LOG_DIR,
+            out_path=self.WEIGHTS_DIR,
             eval_num_episodes=self.eval_num_episodes
         )
         return trainer_configs

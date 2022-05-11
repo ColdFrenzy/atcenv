@@ -1,12 +1,14 @@
 """
 Definitions module
 """
-from shapely.geometry import Point, Polygon
-from dataclasses import dataclass, field
-import atcenv.utils.units as u
 import math
 import random
-from typing import Optional, Tuple, List
+from dataclasses import dataclass, field
+from typing import Optional, Tuple
+
+from shapely.geometry import Point, Polygon, LineString
+
+import atcenv.utils.units as u
 
 
 @dataclass
@@ -43,6 +45,16 @@ class Airspace:
 
         return cls(polygon=polygon)
 
+    @classmethod
+    def fixed(cls, points):
+        """
+        Creates a fixed airspace sector given its points
+        """
+
+        polygon = Polygon(points).convex_hull
+
+        return cls(polygon=polygon)
+
 
 @dataclass
 class Flight:
@@ -53,6 +65,8 @@ class Flight:
     target: Point
     optimal_airspeed: float
     flight_id: int
+    fov_depth: float = 60*u.nm
+    fov_angle: float = math.pi / 2
 
     airspeed: float = field(init=False)
     track: float = field(init=False)
@@ -62,14 +76,18 @@ class Flight:
         Initialises the track and the airspeed
         :return:
         """
+        # Since the track is initialized as the bearing, the track angle is also clockwise w.r.t. north
         self.track = self.bearing
         self.airspeed = self.optimal_airspeed
+        self.optimal_trajectory = LineString(
+            [(self.position.x, self.position.y), (self.target.x, self.target.y)])
 
-    @property
+    @ property
     def bearing(self) -> float:
         """
-        Bearing from current position to target (clockwise angle between 
-        current position and target position starting from the y axis)
+        Bearing from current position to target [0, 2PI]
+        (clockwise angular distance between the north and the line connecting the Flight
+        current position and its destination)
         :return:
         """
         # relative distance between target and flight
@@ -84,55 +102,74 @@ class Flight:
         # https://stackoverflow.com/questions/1311049/how-to-map-atan2-to-degrees-0-360
         return (compass + u.circle) % u.circle
 
-    @property
-    def prediction(self, dt: Optional[float] = 120) -> Point:
+    @ property
+    def distance_from_optimal_trajectory(self) -> float:
         """
-        Predicts the future position after dt seconds, maintaining the current speed and track
+        Compute the distance from the optimal trajectory
+        """
+        return self.position.distance(self.optimal_trajectory)
+
+    @ property
+    def heading_prediction(self, dt: Optional[float] = 120) -> Point:
+        """
+        Predicts the future position after dt seconds related to the heading direction (wind effect not included)
         :param dt: prediction look-ahead time (in seconds)
-        :return:
         """
         dx, dy = self.components
-        return Point([self.position.x + dx * dt, self.position.y + dy * dt])
+        return Point(self.position.x + dx * dt, self.position.y + dy * dt)
 
-    @property
-    def fov(self, depth: Optional[float] = 50000., angle: Optional[float] = math.pi/6) -> Polygon:
+    # Implementare l'HEADING per la visualizzazione --> !!!!!!!!!!!!!!!!!!!!!!!!
+
+    @ property
+    def fov(self) -> Polygon:
         """
         Returns the field of view of the given flight
         :return: polygon representing the agent's fov
         """
-        # TODO : fov should point to the current direction of the flight not
-        # the direction of its target
         fov_vertices = []
+        # center = [self.flights[flight_id].position]
         center_x, center_y = self.position.x, self.position.y
         fov_vertices.append(Point(center_x, center_y))
-        bearing = self.track
-        point_1_x = center_x + (depth *
-                                (math.cos((math.pi-(bearing+math.pi/2)) - angle/2)))
-        point_1_y = center_y + (depth *
-                                (math.sin((math.pi-(bearing+math.pi/2)) - angle/2)))
+        track = self.track
+        # point_1_x = center_x + (self.fov_depth *
+        #                         (math.cos((math.pi - (track + math.pi / 2)) - self.fov_angle / 2)))
+        # point_1_y = center_y + (self.fov_depth *
+        #                         (math.sin((math.pi - (track + math.pi / 2)) - self.fov_angle / 2)))
+        # fov_vertices.append(Point(point_1_x, point_1_y))
+        # point_2_x = center_x + (self.fov_depth *
+        #                         (math.cos((math.pi - (track + math.pi / 2)) + self.fov_angle / 2)))
+        # point_2_y = center_y + (self.fov_depth *
+        #                         (math.sin((math.pi - (track + math.pi / 2)) + self.fov_angle / 2)))
+        # fov_vertices.append(Point(point_2_x, point_2_y))
+        # The following is more compact
+        # just visualize the plane having y instead of x and x instead of y
+        point_1_x = center_x + \
+            (self.fov_depth * math.sin(track - (self.fov_angle/2)))
+        point_1_y = center_y + \
+            (self.fov_depth * math.cos(track - (self.fov_angle/2)))
         fov_vertices.append(Point(point_1_x, point_1_y))
-        point_2_x = center_x + (depth *
-                                (math.cos((math.pi-(bearing+math.pi/2)) + angle/2)))
-        point_2_y = center_y + (depth *
-                                (math.sin((math.pi-(bearing+math.pi/2)) + angle/2)))
-
+        point_2_x = center_x + \
+            (self.fov_depth * math.sin(track + (self.fov_angle/2)))
+        point_2_y = center_y + \
+            (self.fov_depth * math.cos(track + (self.fov_angle/2)))
         fov_vertices.append(Point(point_2_x, point_2_y))
 
         ##########################################################
         return Polygon(fov_vertices)
         ##########################################################
 
-    @property
+    @ property
     def components(self) -> Tuple:
         """
         X and Y Speed components (in kt)
-        :return: speed components
+        :return: speed components (HEADING)
         """
         dx = self.airspeed * math.sin(self.track)
         dy = self.airspeed * math.cos(self.track)
+
         return dx, dy
 
-    @property
+    @ property
     def distance(self) -> float:
         """
         Current distance to the target (in meters)
@@ -140,10 +177,11 @@ class Flight:
         """
         return self.position.distance(self.target)
 
-    @property
+    @ property
     def drift(self) -> float:
         """
-        Drift angle (difference between track and bearing) to the target
+        Drift angle: difference between bearing and track
+        drift is between [-PI, PI]
         :return:
         """
         drift = self.bearing - self.track
@@ -156,35 +194,7 @@ class Flight:
             return drift
 
     @classmethod
-    def fixed(cls, airspace: Airspace, position: Point, min_speed: float, max_speed: float, flight_id: int, tol: float = 0.):
-        """
-        Creates a fixed flight
-
-        :param airspace: airspace where the flight is located
-        :param position: flight position
-        :param max_speed: maximum speed of the flights (in kt)
-        :param min_speed: minimum speed of the flights (in kt)
-        :param flight_id: identifier for a flight
-        :param tol: tolerance to consider that the target has been reached (in meters)
-        :return: fixed flight
-        """
-        assert airspace.contains(
-            position), "The point is outside of the Polygon"
-        # random target
-        boundary = airspace.polygon.boundary
-        while True:
-            d = random.uniform(0, airspace.polygon.boundary.length)
-            target = boundary.interpolate(d)
-            if target.distance(position) > tol:
-                break
-
-        # random speed
-        airspeed = random.uniform(min_speed, max_speed)
-
-        return cls(position, target, airspeed, flight_id)
-
-    @classmethod
-    def random(cls, airspace: Airspace, min_speed: float, max_speed: float, flight_id: int, tol: float = 0.,):
+    def random(cls, airspace: Airspace, min_speed: float, max_speed: float, flight_id: int, tol: float = 0., ):
         """
         Creates a random flight
 
@@ -195,6 +205,7 @@ class Flight:
         :param tol: tolerance to consider that the target has been reached (in meters)
         :return: random flight
         """
+
         def random_point_in_polygon(polygon: Polygon) -> Point:
             minx, miny, maxx, maxy = polygon.bounds
             while True:
@@ -218,3 +229,16 @@ class Flight:
         airspeed = random.uniform(min_speed, max_speed)
 
         return cls(position, target, airspeed, flight_id)
+
+    @ classmethod
+    def fixed(cls, flight_pos: Point, target_pos: Point, airspeed: float, airspace: Airspace, flight_id: int):
+        """
+        Creates a fixed flight
+
+        :param flights_pos: positions of the flight in the airspace
+        :return Flight: fixed flight
+        """
+        assert airspace.polygon.contains(
+            flight_pos), "The point is outside of the Polygon"
+
+        return cls(flight_pos, target_pos, airspeed, flight_id)

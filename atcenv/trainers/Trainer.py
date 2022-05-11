@@ -1,5 +1,5 @@
 import math
-from typing import Dict
+from typing import Dict, Union
 
 import torch
 import copy
@@ -74,11 +74,14 @@ class Trainer:
                 # print(f"step {step}/{self.num_steps}")
                 obs = observation.to(self.device)
 
+                actions = {
+                    agent_id: None for agent_id in range(self.num_agents)}
                 for agent_id in range(self.num_agents):
                     with torch.no_grad():
                         value, action, action_log_prob = \
                             self.agents[agent_id].act(obs[agent_id])
 
+                    actions[agent_id] = action
                     action_list[agent_id] = action
                     values_list[agent_id] = value
                     action_log_list[agent_id] = action_log_prob
@@ -108,7 +111,7 @@ class Trainer:
                 if done:
                     observation = self.env.reset()
 
-    def train(self) -> [torch.Tensor, torch.Tensor, torch.Tensor, Dict[str, Dict]]:
+    def train(self) -> Union[torch.Tensor, torch.Tensor, torch.Tensor, Dict[str, Dict]]:
         [model.train_mode() for model in self.agents]
 
         # logs = {str(ag): None for ag in range(self.num_agents)}
