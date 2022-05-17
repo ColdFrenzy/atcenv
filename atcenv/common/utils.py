@@ -7,7 +7,7 @@ from atcenv.envs import FlightEnv
 from atcenv.envs.CurriculumFlightEnv import CurriculumFlightEnv
 
 
-def parse_args():
+def parse_args(env):
     parser = ArgumentParser(
         prog='Conflict resolution environment',
         description='Basic conflict resolution environment for training policies with reinforcement learning',
@@ -29,7 +29,8 @@ def parse_args():
     parser.add_argument('-debug', action="store_true")
     parser.add_argument('-cur_dir', default=os.getcwd())
     # parser.add_class_arguments(FlightEnv, 'env')
-    parser.add_class_arguments(CurriculumFlightEnv, 'env')
+    # parser.add_class_arguments(CurriculumFlightEnv, 'env')
+    parser.add_class_arguments(env, 'env')
 
     # parse arguments
     args = parser.parse_args()

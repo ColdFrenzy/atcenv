@@ -8,16 +8,17 @@ import random
 from atcenv.models.action_mask_model import FlightActionMaskModel, FlightActionMaskRNNModel
 from atcenv.common.wandb_callbacks import WandbCallbacks
 from atcenv.common.callbacks import CurriculumCallbacks
-from atcenv.common.rllib_configs import multi_agent_configs, eval_configs, ppo_configs, model_configs, resources_configs
+from atcenv.common.independent_PPO_configs import multi_agent_configs, eval_configs, ppo_configs, model_configs, resources_configs
 from atcenv.common.utils import parse_args
 from atcenv.common.custom_eval import flight_custom_eval, flight_custom_eval_no_video
 from ray.rllib.agents.ppo import PPOTrainer
-from atcenv.envs.FlightEnvLoggerWrapper import FlightEnvLoggerWrapper
+from atcenv.envs.FlightEnvLoggerWrapper import CurriculumFlightEnvLoggerWrapper
 
 random.seed(7)
 
 if __name__ == "__main__":
-    args = parse_args()
+    env_cls = CurriculumFlightEnvLoggerWrapper
+    args = parse_args(env_cls)
     CUR_DIR = os.path.abspath(os.path.join(__file__, os.pardir))
     WEIGHTS_DIR = os.path.join(CUR_DIR, "weights")
     IMPORTANT_WEIGHTS = os.path.join(CUR_DIR, "important_weights")
@@ -39,7 +40,6 @@ if __name__ == "__main__":
              num_cpus=r_configs["num_cpus"],
              log_to_driver=args.debug,
              )
-    env_cls = FlightEnvLoggerWrapper
     config = {
         "env": env_cls,
         "framework": "torch",
@@ -103,7 +103,7 @@ if __name__ == "__main__":
         # SAVE MEDIA
         ##################################################
         if epoch % args.media_checkpoints_freq == 0 and epoch != 0:
-            env = FlightEnvLoggerWrapper(
+            env = CurriculumFlightEnvLoggerWrapper(
                 **config["evaluation_config"]["env_config"], cur_level=cur_level, reward_as_dict=True)
             LOG_FILE = os.path.join(LOG_DIR, f"atc_challenge_{epoch}.log")
             eval_result, next_level = flight_custom_eval(
@@ -112,7 +112,7 @@ if __name__ == "__main__":
             result.update(eval_result)
             wdb_callback.log_media(result)
         else:
-            env = FlightEnvLoggerWrapper(
+            env = CurriculumFlightEnvLoggerWrapper(
                 **config["evaluation_config"]["env_config"], cur_level=cur_level)
             eval_result, next_level = flight_custom_eval_no_video(
                 env, default_policy, config["evaluation_duration"])

@@ -68,10 +68,12 @@ class FlightEnv(MultiAgentEnv):
                  wind_speed: Optional[float] = 0,
                  wind_dir: Optional[str] = 'NW3',
                  reward_as_dict: Optional[bool] = False,
+                 global_reward: Optional[bool] = False,
                  screen_size=600,
                  stop_when_outside=True,
                  max_distance_from_target=10,
                  use_drift=False,
+                 qmix_obs=True,
                  ** kwargs):
         """
         Initialise the environment.
@@ -91,10 +93,12 @@ class FlightEnv(MultiAgentEnv):
         :param wind_speed: wind speed (in kt)
         :param wind_dir: cardinal direction of the wind 
         :param reward_as_dict: if True, the reward is returned as a dict of the individual reward components. Useful for debugging
+        :param global_reward: if True, return a single common reward (sum of individual rewards) for all the agents. (this option overwrite reward_as_dict)
         :param screen_size: size of the screen 
         :param stop_when_outside: if True, agent is done when outside the Airspace and when its distance from target is > max_distance_from_target
         :param max_distance_from_target: only considered when stop_when_outside is True
         :param use_drift: use the drift angle as observation
+        :param qmix_obs: if True return the observations as a dict of {"obs": , "action_mask"} and return also the observations from done agents
         :param kwargs: other arguments of your custom environment
         """
         self.num_flights = num_flights
@@ -110,10 +114,12 @@ class FlightEnv(MultiAgentEnv):
         self.wind_speed = wind_speed * u.kt
         self.wind_dir = wind_dir
         self.reward_as_dict = reward_as_dict
+        self.global_reward = global_reward
         self.stop_when_outside = stop_when_outside
         self.max_distance_from_target = max_distance_from_target * u.nm
         self.use_drift = use_drift
-
+        self.qmix_obs = qmix_obs
+        self._agent_ids = {i for i in range(self.num_flights)}
         # tolerance to consider that the target has been reached (in meters)
         self.tol = self.max_speed * 1.05 * self.dt
 
@@ -149,20 +155,44 @@ class FlightEnv(MultiAgentEnv):
         # =============================================================================
         # OBSERVATIONS
         # =============================================================================
-        obs_space = {  # OrderedDict({
-            "velocity": gym.spaces.Box(low=0, high=1, shape=(1,)),
-            "bearing": gym.spaces.Box(low=0, high=1, shape=(1,)),
-            "distance_from_target": gym.spaces.Box(low=0, high=1, shape=(1,)),
-            "track": gym.spaces.Box(low=0, high=1, shape=(1,)),
-            "action_mask": gym.spaces.Box(
-                low=0.0, high=1.0, shape=(len(self.action_list),))
-        }
-        if self.max_agent_seen > 0:
-            obs_space["agents_in_fov"] = gym.spaces.Box(
-                low=0, high=2, shape=(3 * self.max_agent_seen,))
-        if self.use_drift:
-            obs_space["drift"] = gym.spaces.Box(
-                low=-0.5, high=0.5, shape=(1,))
+        if self.qmix_obs:
+            tmp_obs_space = OrderedDict({
+                "obs": OrderedDict({
+                    "velocity": gym.spaces.Box(low=0, high=1, shape=(1,)),
+                    "bearing": gym.spaces.Box(low=0, high=1, shape=(1,)),
+                    "distance_from_target": gym.spaces.Box(low=0, high=1, shape=(1,)),
+                    "track": gym.spaces.Box(low=0, high=1, shape=(1,)),
+                }),
+                "action_mask": gym.spaces.Box(
+                    low=0.0, high=1.0, shape=(len(self.action_list),))
+            })
+            if self.max_agent_seen > 0:
+                tmp_obs_space["obs"]["agents_in_fov"] = gym.spaces.Box(
+                    low=0, high=2, shape=(3 * self.max_agent_seen,))
+            if self.use_drift:
+                tmp_obs_space["obs"]["drift"] = gym.spaces.Box(
+                    low=-0.5, high=0.5, shape=(1,))
+
+            obs_space = OrderedDict({
+                "obs": gym.spaces.Dict(tmp_obs_space["obs"]),
+                "action_mask": tmp_obs_space["action_mask"]
+            })
+        else:
+            obs_space = {  # OrderedDict({
+                "velocity": gym.spaces.Box(low=0, high=1, shape=(1,)),
+                "bearing": gym.spaces.Box(low=0, high=1, shape=(1,)),
+                "distance_from_target": gym.spaces.Box(low=0, high=1, shape=(1,)),
+                "track": gym.spaces.Box(low=0, high=1, shape=(1,)),
+                "action_mask": gym.spaces.Box(
+                    low=0.0, high=1.0, shape=(len(self.action_list),))
+            }
+            if self.max_agent_seen > 0:
+                obs_space["agents_in_fov"] = gym.spaces.Box(
+                    low=0, high=2, shape=(3 * self.max_agent_seen,))
+            if self.use_drift:
+                obs_space["drift"] = gym.spaces.Box(
+                    low=-0.5, high=0.5, shape=(1,))
+
         self.observation_space = gym.spaces.Dict(obs_space)
 
     def resolution(self, actions: Dict) -> None:
@@ -198,25 +228,40 @@ class FlightEnv(MultiAgentEnv):
         ########################################################
         # REWARDS WEIGHTS
         ########################################################
-        collision_weight = 0.0  # -0.1
+        collision_weight = -0.1  # -0.1
         dist_weight = 0.0  # - 1.0
-        target_reached_w = 0.0  # 1.0
+        target_reached_w = 10.0  # 1.0
         distance_from_optimal_trajectory_w = 0.0  # - 0.01
-        drift_penalty_w = -0.1  # -1
+        drift_penalty_w = 0.0  # -0.1, -1
         changed_angle_penalty_w = 0.0  # - 0.01
         ########################################################
         # REWARDS
         ########################################################
-        if self.reward_as_dict:
+        ################## GLOBAL REWARD #######################
+        if self.global_reward:
+            rews = 0.0
+            for f_id, flight in self.flights.items():
+                if self.done[f_id]:
+                    continue
+                rews += target_dist(flight,
+                                    self.max_distance) * dist_weight
+                rews += flight.distance_from_optimal_trajectory * \
+                    distance_from_optimal_trajectory_w
+                rews += self.changed_angle_penalty[f_id] * \
+                    changed_angle_penalty_w
+                drift_rew = min_max_normalizer(flight.drift,
+                                               0, 2*math.pi)
+                rews += (drift_rew * drift_penalty_w) if drift_rew >= 0 else (
+                    drift_rew * -drift_penalty_w)
+                if target_reached(flight, self.tol):
+                    rews += target_reached_w
+        ################## INDIVIDUAL REWARD #######################
+        elif self.reward_as_dict:
             rews = {k: defaultdict(float) for k in self.flights.keys()}
-        else:
-            rews = {k: 0 for k in self.flights.keys()}
-
-        for f_id, flight in self.flights.items():
-            if self.done[f_id]:
-                rews.pop(f_id)
-                continue
-            if self.reward_as_dict:
+            for f_id, flight in self.flights.items():
+                if self.done[f_id]:
+                    rews.pop(f_id)
+                    continue
                 rews[f_id]["distance_from_target_rew"] += target_dist(
                     flight, self.max_distance) * dist_weight
                 rews[f_id]["distance_from_traj_rew"] += flight.distance_from_optimal_trajectory * \
@@ -228,8 +273,15 @@ class FlightEnv(MultiAgentEnv):
                     drift_rew * -drift_penalty_w)
                 if target_reached(flight, self.tol):
                     rews[f_id]["target_reached_rew"] += target_reached_w
-
-            else:
+        else:
+            rews = {k: 0 for k in self.flights.keys()}
+            for f_id, flight in self.flights.items():
+                # if qmix_obs is true we should return also the done agents
+                if self.done[f_id] and not self.qmix_obs:
+                    rews.pop(f_id)
+                    continue
+                elif self.done[f_id] and self.qmix_obs:
+                    continue
                 rews[f_id] += target_dist(flight,
                                           self.max_distance) * dist_weight
                 rews[f_id] += flight.distance_from_optimal_trajectory * \
@@ -245,7 +297,9 @@ class FlightEnv(MultiAgentEnv):
 
         # collision penalty
         for c in self.conflicts:
-            if self.reward_as_dict:
+            if self.global_reward:
+                rews += collision_weight
+            elif self.reward_as_dict:
                 rews[c]["collision_rew"] += collision_weight
             else:
                 rews[c] += collision_weight
@@ -276,9 +330,21 @@ class FlightEnv(MultiAgentEnv):
         observations = {}
 
         for i, flight in self.flights.items():
-            if self.done[i]:
-                continue
-            observations[i] = {}
+            if self.qmix_obs:
+                observations[i] = OrderedDict(
+                    {"obs": OrderedDict(), "action_mask": None})
+                if self.done[i]:
+                    # if done, return all zeros as observations
+                    for item in self.observation_space["obs"]:
+                        observations[i]["obs"][item] = np.zeros(
+                            self.observation_space["obs"][item].shape)
+                    observations[i]["action_mask"] = np.ones(
+                        self.observation_space["action_mask"].shape)
+                    continue
+            else:
+                if self.done[i]:
+                    continue
+                observations[i] = {}
             # compute observations and normalizations
             # speed normalized between min and max speed
             v = min_max_normalizer(
@@ -297,21 +363,40 @@ class FlightEnv(MultiAgentEnv):
             assert 0 <= t <= 1, f"Track is not in range [0,1]. Got '{t}'"
             # assert - \
             #     0.5 <= drift <= 0.5, f"Drift is not in range [-0.5, 0.5]. Got '{drift}'"
+            if self.qmix_obs:
+                observations[i]["obs"]['velocity'] = np.asarray([v])
+                observations[i]["obs"]['bearing'] = np.asarray([b])
+                observations[i]["obs"]['distance_from_target'] = np.asarray([
+                                                                            d])
+                observations[i]["obs"]['track'] = np.asarray([t])
+                drift = min_max_normalizer(flight.drift, 0, 2*math.pi)
+                if self.max_agent_seen > 0:
+                    # drift is between -0.5 and 0.5
+                    left_angle, right_angle, dists = self.polar_distance(
+                        flight)
+                    obs = np.concatenate([left_angle, right_angle, dists])
+                    observations[i]["obs"]['agents_in_fov'] = obs
+                if self.use_drift:
+                    observations[i]["obs"]['drift'] = np.asarray([drift])
 
-            observations[i]['velocity'] = np.asarray([v])
-            observations[i]['bearing'] = np.asarray([b])
-            observations[i]['track'] = np.asarray([t])
-            drift = min_max_normalizer(flight.drift, 0, 2*math.pi)
-            if self.max_agent_seen > 0:
-                # drift is between -0.5 and 0.5
-                left_angle, right_angle, dists = self.polar_distance(flight)
-                obs = np.concatenate([left_angle, right_angle, dists])
-                observations[i]['agents_in_fov'] = obs
-            if self.use_drift:
-                observations[i]['drift'] = np.asarray([drift])
-            observations[i]['distance_from_target'] = np.asarray([d])
-            observations[i]['action_mask'] = np.ones(len(self.action_list))
-            observations[i]['action_mask'][self.get_mask(i)] = 0.0
+                observations[i]['action_mask'] = np.ones(len(self.action_list))
+                observations[i]['action_mask'][self.get_mask(i)] = 0.0
+            else:
+                observations[i]['velocity'] = np.asarray([v])
+                observations[i]['bearing'] = np.asarray([b])
+                observations[i]['track'] = np.asarray([t])
+                drift = min_max_normalizer(flight.drift, 0, 2*math.pi)
+                if self.max_agent_seen > 0:
+                    # drift is between -0.5 and 0.5
+                    left_angle, right_angle, dists = self.polar_distance(
+                        flight)
+                    obs = np.concatenate([left_angle, right_angle, dists])
+                    observations[i]['agents_in_fov'] = obs
+                if self.use_drift:
+                    observations[i]['drift'] = np.asarray([drift])
+                observations[i]['distance_from_target'] = np.asarray([d])
+                observations[i]['action_mask'] = np.ones(len(self.action_list))
+                observations[i]['action_mask'][self.get_mask(i)] = 0.0
 
         return observations
 

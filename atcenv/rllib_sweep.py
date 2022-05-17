@@ -9,7 +9,7 @@ from atcenv.envs.CurriculumFlightEnv import CurriculumFlightEnv
 from atcenv.common.wandb_callbacks import WandbCallbacks
 from atcenv.models.action_mask_model import FlightActionMaskModel, FlightActionMaskRNNModel
 from atcenv.common.callbacks import CurriculumCallbacks, MediaWandbLogger
-from atcenv.common.rllib_configs import multi_agent_configs, eval_configs, ppo_configs, model_configs, resources_configs
+from atcenv.common.independent_PPO_configs import multi_agent_configs, eval_configs, ppo_configs, model_configs, resources_configs
 from atcenv.common.utils import parse_args, curriculum_fn
 from atcenv.common.custom_eval import flight_custom_eval, flight_custom_eval_no_video
 from atcenv.envs import get_env_cls
