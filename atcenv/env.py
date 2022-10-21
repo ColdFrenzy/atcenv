@@ -18,10 +18,10 @@ class Environment(gym.Env):
     metadata = {'render.modes': ['rgb_array']}
 
     def __init__(self,
-                 num_flights: int = 10,
+                 num_flights: int = 3,
                  dt: float = 5.,
-                 max_area: Optional[float] = 200. * 200.,
-                 min_area: Optional[float] = 125. * 125.,
+                 max_area: Optional[float] = (80.)**2,
+                 min_area: Optional[float] = (60.)**2,
                  max_speed: Optional[float] = 500.,
                  min_speed: Optional[float] = 400,
                  max_episode_len: Optional[int] = 300,
@@ -230,13 +230,13 @@ class Environment(gym.Env):
                                                  (maxx, maxy),
                                                  (maxx, miny)],
                                                 filled=True)
-            background.set_color(*BLACK)
+            background.set_color(*WHITE)
             self.viewer.add_geom(background)
 
             # display airspace
             sector = rendering.make_polygon(self.airspace.polygon.boundary.coords, filled=False)
             sector.set_linewidth(1)
-            sector.set_color(*WHITE)
+            sector.set_color(*BLACK)
             self.viewer.add_geom(sector)
 
         # add current positions
